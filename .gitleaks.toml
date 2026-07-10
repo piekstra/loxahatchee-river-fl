@@ -1,0 +1,9 @@
+# gitleaks configuration for loxahatchee-river-fl.
+#
+# This tool handles NO credentials and hardcodes no secrets — it makes anonymous
+# guest-view reads against a public utility portal. So we simply extend the
+# default ruleset with no allowlisted secrets. If gitleaks ever flags something,
+# it's a real finding: remove it, don't allowlist it.
+
+[extend]
+useDefault = true

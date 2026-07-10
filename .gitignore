@@ -1,0 +1,23 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Secrets — this tool needs none; keep it that way
+.env
+.env.*
+*.local
+*.secret
+*.token
+
+# Personal state — the default account lives in ~/.config, never in the repo
+account
+*.account
+
+# Local tooling session state (twapp)
+.twapp-*.json
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
