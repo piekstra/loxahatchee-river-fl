@@ -1,6 +1,14 @@
 # cargo-deny configuration. Run: cargo deny check
 [advisories]
 yanked = "deny"
+# All three come transitively from `self_update`, and none are reachable in how
+# `lrfl self-update` uses it (the GitHub backend parses JSON release metadata,
+# not XML; the progress bar is cosmetic). Reviewed 2026-07-10.
+ignore = [
+    "RUSTSEC-2026-0194", # quick-xml: quadratic attribute-check DoS on untrusted XML — self_update's GitHub backend is JSON-only.
+    "RUSTSEC-2026-0195", # quick-xml: unbounded namespace alloc in NsReader — same; no untrusted XML parsed.
+    "RUSTSEC-2025-0119", # number_prefix: unmaintained; pulled by indicatif's progress bar.
+]
 
 [licenses]
 # Permissive licenses we accept for dependencies.
