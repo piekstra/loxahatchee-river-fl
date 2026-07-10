@@ -2,8 +2,8 @@
 //!
 //! Precedence for reading a session credential: **OS keychain → environment
 //! variable**. Secrets never appear in `Debug`/`Display` output and are zeroized
-//! on drop. The only secret this tool ever stores is the Cognito **refresh
-//! token** obtained at `lrfl login` — never the password.
+//! on drop. The only secret this tool stores is the portal **password** (the
+//! durable credential in the FIS cookie-session model), set at `lrfl login`.
 
 use std::fmt;
 

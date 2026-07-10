@@ -55,39 +55,48 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl open [ACCT]` | Open the account's portal page in your browser |
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
-| `lrfl login` / `logout` / `whoami` | Manage a logged-in session (refresh token in the OS keychain) |
-| `lrfl profile` | Your account holder profile (name, email, phone) — requires login |
+| `lrfl login` / `logout` / `whoami` | Manage a logged-in session (credential in the OS keychain) |
 | `lrfl accounts` | Utility accounts linked to your login — requires login |
-| `lrfl schedules` | Your scheduled payments — requires login |
-| `lrfl wallet` | Your saved payment methods — requires login |
 | `lrfl self-update` | Update `lrfl` to the latest GitHub release (`--check` to only check) |
+| `lrfl completions <shell>` | Print a shell completion script |
 
 ### Logging in
 
-Guest reads (`balance`, `charges`, `history`, …) need no login. The authenticated
-commands (`profile`, `accounts`, `schedules`, `wallet`) use your portal account:
+Guest reads (`balance`, `charges`, `history`, …) need no login. Logging in adds
+`whoami` and `accounts` (the utility accounts linked to your portal login):
 
 ```sh
 lrfl login                    # prompts for email + password (no-echo)
-lrfl whoami                   # ✓ logged in as you@example.com
-lrfl accounts                 # utility accounts on your login
-lrfl profile --json
+lrfl whoami                   # who you're logged in as (name, user id)
+lrfl accounts                 # utility accounts linked to your login
 lrfl logout                   # removes the stored session
 ```
 
-Login exchanges your email + password for an AWS Cognito token set. **Only the
-long-lived refresh token is stored, in the OS keychain** (macOS Keychain) — never
-your password, never the short-lived access token. Each authenticated command
-trades the refresh token for a fresh access token at call time. `--email` /
-`$LRFL_EMAIL` pick the account; `$LRFL_REFRESH_TOKEN` can supply the token in
-headless/CI use. You can pipe the password on stdin (`echo "$PW" | lrfl login
---email you@example.com`) for scripting.
+Loxahatchee logins go through the district's SunGard/FIS identity provider, whose
+session is cookie-based with no long-lived token to persist. So `lrfl` stores your
+**password in the OS keychain** (macOS Keychain) and performs a fresh login to
+mint a short-lived token at the start of each authenticated command — nothing
+expirable is kept, and the password is never written to disk in plaintext.
+`--email` / `$LRFL_EMAIL` pick the account; `$LRFL_PASSWORD` can supply the
+password in headless/CI use. You can pipe the password on stdin
+(`printf '%s' "$PW" | lrfl login --email you@example.com`) for scripting.
+
+> On macOS the first authenticated command after installing (or upgrading) the
+> binary shows a Keychain permission prompt — click **Always Allow** so future
+> runs don't ask again. This is macOS tying keychain access to each build.
 
 ### Staying up to date
 
 ```sh
 lrfl self-update --check      # is a newer release available?
 lrfl self-update              # download + replace the binary in place
+```
+
+### Shell completions
+
+```sh
+lrfl completions zsh  > ~/.zfunc/_lrfl      # then ensure ~/.zfunc is in $fpath
+lrfl completions bash > /usr/local/etc/bash_completion.d/lrfl
 ```
 
 ### Account numbers
@@ -127,10 +136,11 @@ someone's identity just because you typed a number. Pass `--show-owner` to revea
 them for an account you own. The district's own portal redacts owner names too;
 this tool honors that.
 
-The only secret the tool ever stores is your login **refresh token**, in the OS
-keychain (never your password). Non-secret state — your default account number
-and login email — lives in plain files under `~/.config/loxahatchee-cli/`. Guest
-reads store nothing at all.
+The only secret the tool stores is your portal **password**, in the OS keychain
+(the FIS session model exposes no long-lived token to keep instead) — never in a
+plaintext file, and redacted/zeroized in memory. Non-secret state — your default
+account number and login email — lives in plain files under
+`~/.config/loxahatchee-cli/`. Guest reads store nothing at all.
 
 ## Global flags
 

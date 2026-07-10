@@ -21,7 +21,7 @@ fn default_account_path() -> Option<PathBuf> {
 }
 
 /// Location of the remembered login-email file (an email is not a secret; the
-/// refresh token it unlocks lives in the OS keychain).
+/// password it pairs with lives in the OS keychain).
 fn session_email_path() -> Option<PathBuf> {
     Some(config_dir()?.join("session-email"))
 }

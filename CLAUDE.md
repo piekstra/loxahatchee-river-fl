@@ -7,11 +7,15 @@ Guidance for AI agents working in this repo.
 A Rust CLI (`lrfl`) over the **WIPP** (Edmunds GovTech / SunGard) utility-billing
 API that powers the Loxahatchee River District payment portal (tenant `LOXA`).
 Guest commands are anonymous **guest-view** lookups by account number — no
-credentials. Authenticated commands (`login`, `profile`, `accounts`, `schedules`,
-`wallet`) use an AWS Cognito session; only the refresh token is stored (OS
-keychain), traded for a fresh access token per call. `lrfl pay` computes what's
-owed and hands off to the portal's PCI-compliant Pay Now page rather than touching
-card data. `lrfl self-update` pulls the latest GitHub release.
+credentials. Authenticated commands (`login`/`logout`/`whoami`, `accounts`) use
+the district's **SunGard/FIS** login (a two-hop cookie→JWT flow); the password is
+stored in the OS keychain and a fresh token is minted per command. `lrfl pay`
+computes what's owed and hands off to the portal's PCI-compliant Pay Now page
+rather than touching card data. `lrfl self-update` pulls the latest GitHub release.
+
+Structured as a **library + thin binary** (like the pup CLI): logic lives in the
+`loxahatchee_river_fl` lib (`src/lib.rs`); `main.rs` only parses args and
+dispatches into `src/commands/`.
 
 ## Build / test / run
 
@@ -27,20 +31,25 @@ cargo fmt --all
 
 ## Layout
 
-- `src/cli.rs` — clap arg/command definitions.
+- `src/lib.rs` — library root (declares the modules below).
+- `src/main.rs` — thin binary: parse args, build `Ctx`, dispatch to `commands`.
+- `src/cli.rs` — clap `Cli` / `Command` definitions.
+- `src/commands/` — one thin module per domain (`account`, `status`, `history`,
+  `pay`, `district`, `config`, `auth`, `accounts`, `self_update`, `completions`);
+  `mod.rs` holds `Ctx` and the shared `resolve_account`.
 - `src/client.rs` — the `Wipp` HTTP client: tenant header, browser UA, the async
-  submit-then-poll `/requests/{id}` pattern, and the Cognito auth calls.
-- `src/acct.rs` — utility account-id parsing (`NNNNNNN-N` ↔ padded API key). Tested.
-- `src/account.rs` — the normalized `Account`/`ServiceCharge` model, the
-  amount-due math, and defensive JSON parsing. Tested.
+  submit-then-poll `/requests/{id}` pattern, and the FIS login (two hops on a
+  cookie session → `id_token`).
+- `src/acct.rs` — account-id parsing (`NNNNNNN-N` ↔ padded API key). Tested.
+- `src/account.rs` — normalized `Account`/`ServiceCharge` + amount-due math. Tested.
 - `src/model.rs` — `District`, `Payment`, `AccountStatus` models. Tested.
-- `src/secrets.rs` — `Secret` (redacts/zeroizes) + keychain `CredentialStore`. Tested.
-- `src/session.rs` — login/logout/refresh-on-use; refresh token in the keychain.
-- `src/update.rs` — `self-update` via GitHub releases (`self_update` crate).
+- `src/auth/` — `secrets.rs` (`Secret` redacts/zeroizes + keychain store; tested)
+  and `session.rs` (login/logout; stores the password, mints tokens per call).
+- `src/formatter.rs` — human vs `--json` rendering, incl. owner redaction.
+- `src/util.rs` — date math, prompts, browser opener, JWT-claims decode. Tested.
+- `src/version.rs` — `VERSION` + `build_info`. Tested.
 - `src/config.rs` — saved default-account + login-email files (not secrets).
-- `src/output.rs` — human vs `--json` rendering, incl. owner redaction.
-- `src/main.rs` — wiring, account resolution, date helpers, browser opener,
-  password/email prompts.
+- `src/update.rs` — `self-update` via GitHub releases (`self_update` crate).
 - `docs/wipp-api.md` — the discovered API (endpoints, shapes, gotchas). No PII.
 - `.github/workflows/release.yml` — tag `v*` → build binaries `self-update` fetches.
 
@@ -67,9 +76,13 @@ cargo fmt --all
 - Be polite: this is a public portal at human scale. No aggressive looping.
 - Card payments intentionally go through the portal (reCAPTCHA + gateway). Don't
   add code that posts card data.
-- **Auth is reverse-engineered and only partly verifiable without real creds.**
-  Login (`POST /auth`) returns bad-credential failures as a bare `(500)` — treat
-  non-`SUCCESS` envelopes as auth failures. Only the refresh token is persisted
-  (keychain); never store the password or access token. The authed list renderers
-  (`accounts`/`schedules`/`wallet`) are deliberately shape-tolerant (raw in
-  `--json`) since their exact fields aren't yet confirmed against a live session.
+- **Auth is the SunGard/FIS flow, verified against a live login.** Login is two
+  hops on one cookie session: `POST /proxy/fis/rest/1.0/sessions {loginName,
+  password}` (api-type: auth) → session cookies, then `GET
+  /proxy/fis/rest/1.0/idptoken/openid-connect?client_id=Enroll.User` → an
+  `id_token` JWT used as the bearer. Wrong passwords come back `400` on hop 1. The
+  client needs `cookie_store(true)`. The password is the persisted credential
+  (keychain) — FIS exposes no refresh token. Cognito-only endpoints
+  (`/accounts/cognitoUsers`, `/payments/schedules`, `/wallet/Accounts`) 403/500
+  for FIS users and are intentionally not shipped; `/accounts/billingAccounts`
+  works and powers `accounts`.

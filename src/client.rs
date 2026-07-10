@@ -25,6 +25,8 @@ use crate::error::AppError;
 
 /// Production WIPP core API base (baked into the portal's own JS bundle).
 pub const BASE: &str = "https://api.edmundsgovtech.cloud/wipp-core/v1";
+/// wipp-core's proxy to the SunGard/FIS identity provider — used for login.
+pub const FIS_PROXY: &str = "https://api.edmundsgovtech.cloud/wipp-core/proxy/fis";
 /// Default tenant id — the Loxahatchee River District.
 pub const DEFAULT_WIPP_ID: &str = "LOXA";
 /// Public web origin (used to build portal deep links for `pay` / `open`).
@@ -56,6 +58,8 @@ impl Wipp {
         let client = reqwest::blocking::Client::builder()
             .user_agent(UA)
             .timeout(Duration::from_secs(25))
+            // The FIS login exchanges a session cookie (hop 1) for a JWT (hop 2).
+            .cookie_store(true)
             .build()
             .map_err(|e| AppError::Other(format!("failed to build HTTP client: {e}")))?;
         Ok(Self { client, wipp_id })
@@ -91,27 +95,6 @@ impl Wipp {
             .bearer_auth(bearer)
             .send()?;
         parse_response(resp)
-    }
-
-    /// `POST {BASE}{path}` with a JSON body, the tenant header, and an optional
-    /// bearer token.
-    fn post(
-        &self,
-        path: &str,
-        body: &Value,
-        bearer: Option<&str>,
-    ) -> Result<(u16, Value), AppError> {
-        let url = format!("{BASE}{path}");
-        let mut req = self
-            .client
-            .post(&url)
-            .header("X-Wipp-Id", &self.wipp_id)
-            .header("Accept", "application/json, text/plain, */*")
-            .json(body);
-        if let Some(token) = bearer {
-            req = req.bearer_auth(token);
-        }
-        parse_response(req.send()?)
     }
 
     /// Map a non-success status + body into the right [`AppError`], for the
@@ -241,48 +224,64 @@ impl Wipp {
 
     // --- Authenticated (logged-in) endpoints --------------------------------
     //
-    // The portal authenticates against AWS Cognito. `POST /auth` exchanges
-    // email + password for a token set; `POST /auth/refreshToken` exchanges the
-    // long-lived refresh token for a fresh access token. Both answer with a
-    // `{ status, data, message }` envelope. These are reverse-engineered from
-    // the portal SPA and exercised with a real login.
+    // The Loxahatchee portal authenticates its users through the SunGard/FIS
+    // ("Link2Gov") identity provider, proxied by wipp-core. Login is two hops
+    // over one cookie session:
+    //   1. POST {FIS_PROXY}/rest/1.0/sessions {loginName, password}  → session cookies
+    //   2. GET  {FIS_PROXY}/rest/1.0/idptoken/openid-connect?...     → an `id_token` JWT
+    // That JWT is then the `Authorization: Bearer` for the wipp-core API. The
+    // client is built with a cookie store so hop 2 sees hop 1's session.
 
-    /// Exchange email + password for a token set. `POST /auth`.
-    pub fn authenticate(&self, email: &str, password: &str) -> Result<TokenSet, AppError> {
-        let body = serde_json::json!({ "email": email, "password": password });
-        let (status, resp) = self.post("/auth", &body, None)?;
-        Self::parse_auth_envelope(status, resp)
+    /// Log in via the FIS session flow and return the resulting `id_token` (a
+    /// short-lived JWT used as the bearer for authenticated calls).
+    pub fn fis_login(&self, login_name: &str, password: &str) -> Result<String, AppError> {
+        // Hop 1: establish the session (Set-Cookie captured by the cookie store).
+        let body = serde_json::json!({ "loginName": login_name, "password": password });
+        let (s1, b1) = parse_response(
+            self.client
+                .post(format!("{FIS_PROXY}/rest/1.0/sessions"))
+                .header("X-Wipp-Id", &self.wipp_id)
+                .header("api-type", "auth")
+                .header("Accept", "application/json, text/plain, */*")
+                .json(&body)
+                .send()?,
+        )?;
+        if s1 != 200 {
+            return Err(AppError::Auth(format!(
+                "login failed: {}",
+                fis_error(s1, &b1)
+            )));
+        }
+
+        // Hop 2: exchange the session for an OpenID id_token.
+        let (s2, b2) = parse_response(
+            self.client
+                .get(format!(
+                    "{FIS_PROXY}/rest/1.0/idptoken/openid-connect?client_id=Enroll.User"
+                ))
+                .header("X-Wipp-Id", &self.wipp_id)
+                .header("api-type", "auth")
+                .header("Accept", "application/json, text/plain, */*")
+                .send()?,
+        )?;
+        if s2 != 200 {
+            return Err(AppError::Auth(format!(
+                "login token exchange failed: {}",
+                fis_error(s2, &b2)
+            )));
+        }
+        b2.get("id_token")
+            .and_then(Value::as_str)
+            .filter(|t| !t.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| AppError::Auth("login succeeded but no id_token was returned".into()))
     }
 
-    /// Exchange a refresh token for a fresh token set. `POST /auth/refreshToken`.
-    pub fn refresh(&self, email: &str, refresh_token: &str) -> Result<TokenSet, AppError> {
-        let body = serde_json::json!({ "email": email, "refreshToken": refresh_token });
-        let (status, resp) = self.post("/auth/refreshToken", &body, None)?;
-        Self::parse_auth_envelope(status, resp)
-    }
-
-    /// The logged-in user's profile. `GET /accounts/cognitoUsers`.
-    pub fn profile(&self, bearer: &str) -> Result<Value, AppError> {
-        let (s, b) = self.get_authed("/accounts/cognitoUsers", bearer)?;
-        self.require_authed(s, b, "profile")
-    }
-
-    /// Utility accounts linked to the logged-in user. `GET /accounts/billingAccounts`.
+    /// Utility accounts linked to the logged-in user.
+    /// `GET /accounts/billingAccounts` → `[{ wippId, accountType, accountId }]`.
     pub fn billing_accounts(&self, bearer: &str) -> Result<Value, AppError> {
         let (s, b) = self.get_authed("/accounts/billingAccounts", bearer)?;
         self.require_authed(s, b, "billing accounts")
-    }
-
-    /// Saved scheduled payments. `GET /payments/schedules`.
-    pub fn payment_schedules(&self, bearer: &str) -> Result<Value, AppError> {
-        let (s, b) = self.get_authed("/payments/schedules", bearer)?;
-        self.require_authed(s, b, "scheduled payments")
-    }
-
-    /// Saved wallet accounts / payment methods. `GET /wallet/Accounts`.
-    pub fn wallet(&self, bearer: &str) -> Result<Value, AppError> {
-        let (s, b) = self.get_authed("/wallet/Accounts", bearer)?;
-        self.require_authed(s, b, "wallet")
     }
 
     /// Like [`Wipp::require_ok`] but maps `401`/`403` to an auth error so callers
@@ -302,74 +301,26 @@ impl Wipp {
             ))),
         }
     }
+}
 
-    /// Parse a Cognito `{ status, data, message }` auth envelope into a
-    /// [`TokenSet`], mapping failures (incl. the API's habit of surfacing bad
-    /// credentials as `500`) to a clear [`AppError::Auth`].
-    fn parse_auth_envelope(status: u16, resp: Value) -> Result<TokenSet, AppError> {
-        let msg = resp
-            .get("message")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        if msg == "New_Password_Required" {
-            return Err(AppError::Auth(
-                "this account must set a new password in the portal before it can be used here"
-                    .into(),
-            ));
-        }
-        let ok = resp
-            .get("status")
-            .and_then(Value::as_str)
-            .map(|s| s.eq_ignore_ascii_case("SUCCESS"))
-            .unwrap_or(false);
-        let data = resp.get("data");
-        if status == 200 && ok {
-            if let Some(tokens) = data.and_then(TokenSet::from_node) {
-                return Ok(tokens);
+/// Turn a failed FIS login response into a friendly message. FIS surfaces some
+/// states as `CCnnnn` error codes; a 401/500 on hop 1 is almost always a wrong
+/// login name or password.
+fn fis_error(status: u16, body: &Value) -> String {
+    let code = body.get("errorCode").and_then(Value::as_str).unwrap_or("");
+    match code {
+        "CC0206" => "password has expired — reset it in the portal".into(),
+        "CC0219" => "a temporary password is set — finish resetting it in the portal".into(),
+        _ => {
+            let detail = body_message(body).unwrap_or_else(|| format!("HTTP {status}"));
+            // Hop 1 rejects wrong credentials with a 400/401 (and occasionally a
+            // 500); in every case the actionable cause is the same.
+            if matches!(status, 400 | 401 | 500) {
+                format!("{detail} — double-check your login name and password")
+            } else {
+                detail
             }
         }
-        // Anything else is an auth failure. The Cognito wrapper commonly returns
-        // a bare `(500) …` for wrong or unknown credentials, so add a hint rather
-        // than let it read like a server bug.
-        let detail = if !msg.is_empty() {
-            msg
-        } else {
-            body_message(&resp).unwrap_or_else(|| format!("HTTP {status}"))
-        };
-        let hint = if status == 500 || status == 401 || status == 403 {
-            " — double-check your email and password"
-        } else {
-            ""
-        };
-        Err(AppError::Auth(format!("login failed: {detail}{hint}")))
-    }
-}
-
-/// A Cognito token set. The refresh token is the long-lived credential we store;
-/// the access token is short-lived and used only for the current invocation.
-#[derive(Debug, Clone)]
-pub struct TokenSet {
-    pub access_token: String,
-    pub refresh_token: String,
-}
-
-impl TokenSet {
-    /// Parse from the `data` object of an auth envelope. Tolerates camelCase or
-    /// snake_case keys.
-    fn from_node(v: &Value) -> Option<TokenSet> {
-        let pick = |keys: &[&str]| -> Option<String> {
-            keys.iter()
-                .find_map(|k| v.get(*k).and_then(Value::as_str))
-                .map(str::to_string)
-        };
-        let access_token = pick(&["accessToken", "access_token", "idToken", "id_token"])?;
-        // A refresh may not re-issue a refresh token; the caller keeps the old one.
-        let refresh_token = pick(&["refreshToken", "refresh_token"]).unwrap_or_default();
-        Some(TokenSet {
-            access_token,
-            refresh_token,
-        })
     }
 }
 
