@@ -20,6 +20,20 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+rpassword = "7"
+zeroize = "1"
+self_update = { version = "0.42", default-features = false, features = ["rustls", "archive-tar", "compression-flate2"] }
+
+# Platform-native secret stores for the login session (refresh token):
+# macOS Keychain, Windows Credential Manager, Linux Secret Service (pure-Rust crypto).
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 [profile.release]
 strip = true

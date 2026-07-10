@@ -265,3 +265,80 @@ fn yes_no(b: bool) -> &'static str {
         "no"
     }
 }
+
+/// The logged-in user's profile. Known shape: firstName/lastName/email/phoneNumber.
+pub fn print_profile(v: &Value, json: bool) {
+    if json {
+        print_json(v);
+        return;
+    }
+    let field = |k: &str| {
+        v.get(k)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string()
+    };
+    let name = format!("{} {}", field("firstName"), field("lastName"));
+    let name = name.trim();
+    println!("Profile");
+    println!("  Name:  {}", if name.is_empty() { "—" } else { name });
+    println!("  Email: {}", or_dash(&field("email")));
+    let phone = field("phoneNumber");
+    if !phone.is_empty() {
+        println!("  Phone: {phone}");
+    }
+}
+
+/// Generic renderer for authenticated list/collection endpoints whose exact
+/// shape varies. `--json` prints the raw API body verbatim; human mode gives a
+/// compact summary and falls back to pretty JSON when the shape is unfamiliar.
+pub fn print_authed(title: &str, v: &Value, json: bool) {
+    if json {
+        print_json(v);
+        return;
+    }
+    match v {
+        Value::Array(items) => {
+            if items.is_empty() {
+                println!("{title}: none");
+                return;
+            }
+            println!("{title} ({})\n", items.len());
+            for (i, item) in items.iter().enumerate() {
+                println!("  {}. {}", i + 1, summarize(item));
+            }
+        }
+        Value::Object(map) if map.is_empty() => println!("{title}: none"),
+        _ => {
+            println!("{title}:");
+            print_json(v);
+        }
+    }
+}
+
+/// A one-line summary of a JSON object, preferring the fields these endpoints
+/// commonly carry; falls back to a compact JSON string.
+fn summarize(item: &Value) -> String {
+    let obj = match item.as_object() {
+        Some(o) => o,
+        None => return item.to_string(),
+    };
+    let get = |k: &str| obj.get(k).and_then(Value::as_str).map(str::to_string);
+    let label = get("accountLabelSummary")
+        .or_else(|| get("nickname"))
+        .or_else(|| get("description"))
+        .or_else(|| get("accountId").map(|a| a.trim().to_string()))
+        .or_else(|| get("formattedId"))
+        .or_else(|| get("status"));
+    let amount = obj
+        .get("amount")
+        .or_else(|| obj.get("amt"))
+        .and_then(Value::as_f64);
+    match (label, amount) {
+        (Some(l), Some(a)) => format!("{l}  {}", money(a)),
+        (Some(l), None) => l,
+        (None, Some(a)) => money(a),
+        (None, None) => serde_json::to_string(item).unwrap_or_default(),
+    }
+}

@@ -76,15 +76,42 @@ impl Wipp {
             .header("Accept", "application/json, text/plain, */*")
             .query(query)
             .send()?;
-        let status = resp.status().as_u16();
-        if status == 429 {
-            return Err(AppError::RateLimited);
+        parse_response(resp)
+    }
+
+    /// `GET {BASE}{path}` with the tenant header and a bearer token, for
+    /// authenticated (logged-in) endpoints.
+    fn get_authed(&self, path: &str, bearer: &str) -> Result<(u16, Value), AppError> {
+        let url = format!("{BASE}{path}");
+        let resp = self
+            .client
+            .get(&url)
+            .header("X-Wipp-Id", &self.wipp_id)
+            .header("Accept", "application/json, text/plain, */*")
+            .bearer_auth(bearer)
+            .send()?;
+        parse_response(resp)
+    }
+
+    /// `POST {BASE}{path}` with a JSON body, the tenant header, and an optional
+    /// bearer token.
+    fn post(
+        &self,
+        path: &str,
+        body: &Value,
+        bearer: Option<&str>,
+    ) -> Result<(u16, Value), AppError> {
+        let url = format!("{BASE}{path}");
+        let mut req = self
+            .client
+            .post(&url)
+            .header("X-Wipp-Id", &self.wipp_id)
+            .header("Accept", "application/json, text/plain, */*")
+            .json(body);
+        if let Some(token) = bearer {
+            req = req.bearer_auth(token);
         }
-        let text = resp.text()?;
-        // The API returns JSON on success and a bare `(NNN) message` string on
-        // some errors; tolerate both so callers get a useful message.
-        let value = serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text));
-        Ok((status, value))
+        parse_response(req.send()?)
     }
 
     /// Map a non-success status + body into the right [`AppError`], for the
@@ -211,6 +238,153 @@ impl Wipp {
             self.wipp_id
         )
     }
+
+    // --- Authenticated (logged-in) endpoints --------------------------------
+    //
+    // The portal authenticates against AWS Cognito. `POST /auth` exchanges
+    // email + password for a token set; `POST /auth/refreshToken` exchanges the
+    // long-lived refresh token for a fresh access token. Both answer with a
+    // `{ status, data, message }` envelope. These are reverse-engineered from
+    // the portal SPA and exercised with a real login.
+
+    /// Exchange email + password for a token set. `POST /auth`.
+    pub fn authenticate(&self, email: &str, password: &str) -> Result<TokenSet, AppError> {
+        let body = serde_json::json!({ "email": email, "password": password });
+        let (status, resp) = self.post("/auth", &body, None)?;
+        Self::parse_auth_envelope(status, resp)
+    }
+
+    /// Exchange a refresh token for a fresh token set. `POST /auth/refreshToken`.
+    pub fn refresh(&self, email: &str, refresh_token: &str) -> Result<TokenSet, AppError> {
+        let body = serde_json::json!({ "email": email, "refreshToken": refresh_token });
+        let (status, resp) = self.post("/auth/refreshToken", &body, None)?;
+        Self::parse_auth_envelope(status, resp)
+    }
+
+    /// The logged-in user's profile. `GET /accounts/cognitoUsers`.
+    pub fn profile(&self, bearer: &str) -> Result<Value, AppError> {
+        let (s, b) = self.get_authed("/accounts/cognitoUsers", bearer)?;
+        self.require_authed(s, b, "profile")
+    }
+
+    /// Utility accounts linked to the logged-in user. `GET /accounts/billingAccounts`.
+    pub fn billing_accounts(&self, bearer: &str) -> Result<Value, AppError> {
+        let (s, b) = self.get_authed("/accounts/billingAccounts", bearer)?;
+        self.require_authed(s, b, "billing accounts")
+    }
+
+    /// Saved scheduled payments. `GET /payments/schedules`.
+    pub fn payment_schedules(&self, bearer: &str) -> Result<Value, AppError> {
+        let (s, b) = self.get_authed("/payments/schedules", bearer)?;
+        self.require_authed(s, b, "scheduled payments")
+    }
+
+    /// Saved wallet accounts / payment methods. `GET /wallet/Accounts`.
+    pub fn wallet(&self, bearer: &str) -> Result<Value, AppError> {
+        let (s, b) = self.get_authed("/wallet/Accounts", bearer)?;
+        self.require_authed(s, b, "wallet")
+    }
+
+    /// Like [`Wipp::require_ok`] but maps `401`/`403` to an auth error so callers
+    /// can prompt the user to log in again.
+    fn require_authed(&self, status: u16, body: Value, ctx: &str) -> Result<Value, AppError> {
+        match status {
+            200 => Ok(body),
+            401 | 403 => Err(AppError::Auth(format!(
+                "session expired or unauthorized for {ctx} — run `lrfl login` again"
+            ))),
+            404 => Err(AppError::NotFound(
+                body_message(&body).unwrap_or_else(|| ctx.to_string()),
+            )),
+            _ => Err(AppError::Network(format!(
+                "HTTP {status} from {ctx}: {}",
+                body_message(&body).unwrap_or_else(|| "no detail".into())
+            ))),
+        }
+    }
+
+    /// Parse a Cognito `{ status, data, message }` auth envelope into a
+    /// [`TokenSet`], mapping failures (incl. the API's habit of surfacing bad
+    /// credentials as `500`) to a clear [`AppError::Auth`].
+    fn parse_auth_envelope(status: u16, resp: Value) -> Result<TokenSet, AppError> {
+        let msg = resp
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if msg == "New_Password_Required" {
+            return Err(AppError::Auth(
+                "this account must set a new password in the portal before it can be used here"
+                    .into(),
+            ));
+        }
+        let ok = resp
+            .get("status")
+            .and_then(Value::as_str)
+            .map(|s| s.eq_ignore_ascii_case("SUCCESS"))
+            .unwrap_or(false);
+        let data = resp.get("data");
+        if status == 200 && ok {
+            if let Some(tokens) = data.and_then(TokenSet::from_node) {
+                return Ok(tokens);
+            }
+        }
+        // Anything else is an auth failure. The Cognito wrapper commonly returns
+        // a bare `(500) …` for wrong or unknown credentials, so add a hint rather
+        // than let it read like a server bug.
+        let detail = if !msg.is_empty() {
+            msg
+        } else {
+            body_message(&resp).unwrap_or_else(|| format!("HTTP {status}"))
+        };
+        let hint = if status == 500 || status == 401 || status == 403 {
+            " — double-check your email and password"
+        } else {
+            ""
+        };
+        Err(AppError::Auth(format!("login failed: {detail}{hint}")))
+    }
+}
+
+/// A Cognito token set. The refresh token is the long-lived credential we store;
+/// the access token is short-lived and used only for the current invocation.
+#[derive(Debug, Clone)]
+pub struct TokenSet {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
+impl TokenSet {
+    /// Parse from the `data` object of an auth envelope. Tolerates camelCase or
+    /// snake_case keys.
+    fn from_node(v: &Value) -> Option<TokenSet> {
+        let pick = |keys: &[&str]| -> Option<String> {
+            keys.iter()
+                .find_map(|k| v.get(*k).and_then(Value::as_str))
+                .map(str::to_string)
+        };
+        let access_token = pick(&["accessToken", "access_token", "idToken", "id_token"])?;
+        // A refresh may not re-issue a refresh token; the caller keeps the old one.
+        let refresh_token = pick(&["refreshToken", "refresh_token"]).unwrap_or_default();
+        Some(TokenSet {
+            access_token,
+            refresh_token,
+        })
+    }
+}
+
+/// Read a blocking response into `(status, json-or-bare-string)`, treating 429
+/// as a dedicated rate-limit error.
+fn parse_response(resp: reqwest::blocking::Response) -> Result<(u16, Value), AppError> {
+    let status = resp.status().as_u16();
+    if status == 429 {
+        return Err(AppError::RateLimited);
+    }
+    let text = resp.text()?;
+    // The API returns JSON on success and a bare `(NNN) message` string on some
+    // errors; tolerate both so callers get a useful message.
+    let value = serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text));
+    Ok((status, value))
 }
 
 /// Pull a human message out of an error body, whether it arrived as a JSON

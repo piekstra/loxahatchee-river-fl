@@ -35,6 +35,11 @@ pub struct Cli {
     #[arg(long, global = true, env = "LRFL_WIPP_ID", default_value_t = crate::client::DEFAULT_WIPP_ID.to_string())]
     pub wipp_id: String,
 
+    /// Login email for authenticated commands. Falls back to $LRFL_EMAIL, then
+    /// the email saved by `lrfl login`.
+    #[arg(long, global = true, env = "LRFL_EMAIL")]
+    pub email: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -102,6 +107,38 @@ pub enum Command {
     Config {
         #[command(subcommand)]
         action: ConfigAction,
+    },
+
+    /// Log in with your portal email + password (stores a refresh token in the OS keychain).
+    ///
+    /// The password is read from a no-echo prompt (or stdin if piped) and is
+    /// never stored — only the resulting refresh token goes in the keychain.
+    Login,
+
+    /// Log out: remove the stored session from the keychain.
+    Logout,
+
+    /// Show whether you're logged in (never reveals the token).
+    Whoami,
+
+    /// Show your logged-in profile (name, email, phone). Requires login.
+    Profile,
+
+    /// List the utility accounts linked to your login. Requires login.
+    Accounts,
+
+    /// List your scheduled payments. Requires login.
+    Schedules,
+
+    /// List your saved wallet accounts / payment methods. Requires login.
+    Wallet,
+
+    /// Update lrfl to the latest release from GitHub.
+    #[command(name = "self-update")]
+    SelfUpdate {
+        /// Only check whether an update is available; don't install it.
+        #[arg(long)]
+        check: bool,
     },
 }
 

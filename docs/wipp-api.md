@@ -98,26 +98,34 @@ the `x-recaptcha-token` header). So `lrfl pay` deliberately hands off to the
 portal's Pay Now page — `https://wipp.edmundsgovtech.cloud/view/wippUtil/{dashed
 id}?wippId=LOXA` — rather than handling a card.
 
-## Authenticated endpoints — discovered, not yet implemented
+## Authenticated endpoints
 
-Logging in unlocks a wallet, autopay, and scheduled payments. These need a
-Cognito session and, in places, reCAPTCHA, so they're a roadmap rather than
-shipped commands. Recorded here so the surface is known:
+Login (AWS Cognito) unlocks the profile, linked accounts, wallet, and scheduled
+payments. `lrfl` stores only the refresh token (OS keychain) and trades it for a
+fresh access token per call. Reverse-engineered from the SPA; response shapes for
+the list endpoints are handled defensively (rendered best-effort, raw in `--json`)
+until confirmed against a live session.
 
-- **Auth (AWS Cognito):** `POST /auth` `{email, password}` → session with
-  `cognitoToken{accessToken, refreshToken}`; `POST /auth/refreshToken`,
-  `/forgotPassword`, `/resetForgottenPassword`, `/changePassword`. Authenticated
-  calls add `Authorization: Bearer <accessToken>` + `X-Wipp-Id`.
-- **Profile:** `GET/POST /accounts/cognitoUsers` (`/add`, update, delete),
-  returns `{firstName, lastName, email, phoneNumber}`.
-- **Linked billing accounts:** `…/accounts/billingAccounts/{type}/{id}` and
-  `/accounts/billingAccounts/{type}/{id}/autopay/{billingGroupId}`.
-- **Wallet / payment methods:** `GET/POST/DELETE /wallet/Accounts`,
-  `/wallet/PaymentMethods`, `/wallet/{id}`.
+**Auth envelope** — `POST /auth` and `POST /auth/refreshToken` answer with
+`{ status: "SUCCESS", data: { accessToken, refreshToken, … }, message }`. A
+`message` of `New_Password_Required` means the account must reset its password in
+the portal first. Wrong/unknown credentials frequently surface as a bare
+`(500) …` string rather than a 401 — treat non-`SUCCESS` as an auth failure.
+
+- **Auth:** `POST /auth` `{email, password}`; `POST /auth/refreshToken`
+  `{email, refreshToken}`; also `/forgotPassword`, `/resetForgottenPassword`,
+  `/changePassword`. Authenticated calls add `Authorization: Bearer <accessToken>`
+  \+ `X-Wipp-Id` (+ browser UA). → powers `login` / `logout` / `whoami`.
+- **Profile:** `GET /accounts/cognitoUsers` → `{firstName, lastName, email,
+  phoneNumber}` (also `POST /add`, update, delete). → powers `profile`.
+- **Linked billing accounts:** `GET /accounts/billingAccounts`. Per-account autopay
+  at `…/billingAccounts/{type}/{id}/autopay/{billingGroupId}`. → powers `accounts`.
+- **Wallet / payment methods:** `GET /wallet/Accounts`, `/wallet/PaymentMethods`,
+  `/wallet/{id}` (POST/DELETE to manage). → powers `wallet`.
+- **Scheduled payments:** `GET /payments/schedules`; `POST /payments/schedules/
+  one-time`, `PUT /payments/schedules/one-time/{id}` (writes are reCAPTCHA-gated).
+  → powers `schedules`.
 - **Autopay:** `GET {base}/autopay/associatedAccounts?methodId={id}`.
-- **Scheduled payments:** `GET /payments/schedules`, `POST /payments/schedules/
-  one-time`, `PUT /payments/schedules/one-time/{id}` (reCAPTCHA-gated).
 
-If these get built, auth should follow the project's usual model: the Cognito
-**refresh token in the OS keychain**, email as a non-secret default, never a
-plaintext credential on disk.
+Not yet wired: creating/editing scheduled payments, wallet management, and autopay
+enrollment (the write paths, several reCAPTCHA-gated). Reads are implemented.

@@ -7,12 +7,23 @@
 
 use std::path::PathBuf;
 
-/// Location of the remembered default-account file.
-fn default_account_path() -> Option<PathBuf> {
+/// Base config directory (`$XDG_CONFIG_HOME` or `~/.config`) for this tool.
+fn config_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("loxahatchee-cli").join("account"))
+    Some(base.join("loxahatchee-cli"))
+}
+
+/// Location of the remembered default-account file.
+fn default_account_path() -> Option<PathBuf> {
+    Some(config_dir()?.join("account"))
+}
+
+/// Location of the remembered login-email file (an email is not a secret; the
+/// refresh token it unlocks lives in the OS keychain).
+fn session_email_path() -> Option<PathBuf> {
+    Some(config_dir()?.join("session-email"))
 }
 
 /// The remembered default account, if one was saved.
@@ -45,4 +56,28 @@ pub fn config_path_display() -> String {
     default_account_path()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "(unavailable)".into())
+}
+
+/// The remembered login email, if `lrfl login` saved one.
+pub fn load_session_email() -> Option<String> {
+    let s = std::fs::read_to_string(session_email_path()?).ok()?;
+    let s = s.trim().to_string();
+    (!s.is_empty()).then_some(s)
+}
+
+/// Remember `email` as the logged-in account. Best-effort.
+pub fn save_session_email(email: &str) -> std::io::Result<()> {
+    let path = session_email_path().ok_or_else(|| std::io::Error::other("no config directory"))?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(&path, email)
+}
+
+/// Forget the saved login email. Returns `true` if a file was removed.
+pub fn clear_session_email() -> bool {
+    match session_email_path() {
+        Some(p) if p.exists() => std::fs::remove_file(p).is_ok(),
+        _ => false,
+    }
 }

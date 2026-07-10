@@ -12,15 +12,20 @@ We aim to acknowledge within a few days and coordinate a fix/disclosure with you
 
 ## Notes for this tool
 
-`lrfl` uses **no credentials** and stores **no secrets** — it makes anonymous,
-read-only guest-view requests to a public utility portal, and (optionally) saves
-a default account number, which is not a credential, in a plain config file.
+Guest reads are anonymous and store nothing. If you `lrfl login`, the tool holds
+one secret: your portal **refresh token**, stored in the **OS keychain** (macOS
+Keychain / Windows Credential Manager / Linux Secret Service). It never stores
+your password or the short-lived access token, and never writes a credential to
+disk. Non-secret state (default account number, login email) lives in plain
+`~/.config` files.
 
 The main concerns are therefore:
 
-- **Not introducing secret- or PII-handling by accident.** Owner name/address is
-  redacted by default; tests and fixtures use synthetic data; the pre-commit hook
-  runs `gitleaks`.
+- **Credential handling.** Secrets are wrapped in a type that refuses to print
+  itself (`Debug`/`Display` redacted) and is zeroized on drop; nothing secret is
+  logged or written to disk. `$LRFL_REFRESH_TOKEN` is an env fallback for CI.
+- **No secrets or PII in the repo.** Owner name/address is redacted by default;
+  tests and fixtures use synthetic data; the pre-commit hook runs `gitleaks`.
 - **Dependency advisories** (`cargo audit` / `cargo deny`).
 - **Payments stay on the official gateway.** This tool never captures card data;
   it hands off to the district's PCI-compliant Pay Now page.
