@@ -68,6 +68,19 @@ impl AccountId {
     }
 }
 
+/// Format a raw space-padded utility account key (as the API returns it, e.g.
+/// `" 1234567  0"`) into the `NNNNNNN-N` display form. Inverse of
+/// [`AccountId::raw`].
+pub fn dash_raw_utility(raw: &str) -> String {
+    let base = raw.get(0..8).unwrap_or(raw).trim();
+    let check = raw.get(8..).unwrap_or("").trim();
+    if check.is_empty() {
+        base.to_string()
+    } else {
+        format!("{base}-{check}")
+    }
+}
+
 /// Percent-encode everything outside the RFC-3986 unreserved set. In practice
 /// the only account character needing it is the space (→ `%20`), but encoding
 /// defensively keeps the path valid whatever the tenant sends.
@@ -125,6 +138,15 @@ mod tests {
     #[test]
     fn rejects_empty() {
         assert!(matches!(AccountId::parse("   "), Err(AppError::Usage(_))));
+    }
+
+    #[test]
+    fn dash_raw_utility_inverts_raw() {
+        assert_eq!(dash_raw_utility(" 1234567  0"), "1234567-0");
+        assert_eq!(
+            dash_raw_utility(&AccountId::parse("42-9").unwrap().raw()),
+            "42-9"
+        );
     }
 
     #[test]

@@ -266,79 +266,80 @@ fn yes_no(b: bool) -> &'static str {
     }
 }
 
-/// The logged-in user's profile. Known shape: firstName/lastName/email/phoneNumber.
-pub fn print_profile(v: &Value, json: bool) {
+/// Who you're logged in as. `claims` are the decoded `id_token` fields (FIS
+/// issues `FirstName`, `sub` = login, `UID`, `UserType`, `LastLoginDate`); when
+/// `None`, we're not logged in.
+pub fn print_whoami(login: Option<&str>, claims: Option<&Value>, json: bool) {
     if json {
-        print_json(v);
+        print_json(&json!({
+            "login": login,
+            "logged_in": claims.is_some(),
+            "claims": claims.cloned().unwrap_or(Value::Null),
+        }));
         return;
     }
+    let Some(claims) = claims else {
+        match login {
+            Some(l) => println!("not logged in ({l} has no stored session)"),
+            None => println!("not logged in — run `lrfl login`"),
+        }
+        return;
+    };
     let field = |k: &str| {
-        v.get(k)
+        claims
+            .get(k)
             .and_then(Value::as_str)
             .unwrap_or("")
             .trim()
             .to_string()
     };
-    let name = format!("{} {}", field("firstName"), field("lastName"));
-    let name = name.trim();
-    println!("Profile");
-    println!("  Name:  {}", if name.is_empty() { "—" } else { name });
-    println!("  Email: {}", or_dash(&field("email")));
-    let phone = field("phoneNumber");
-    if !phone.is_empty() {
-        println!("  Phone: {phone}");
+    let name = field("FirstName");
+    let who = login.unwrap_or("").to_string();
+    println!(
+        "logged in as {}",
+        if who.is_empty() { field("sub") } else { who }
+    );
+    if !name.is_empty() {
+        println!("  name:      {name}");
+    }
+    let uid = field("UID");
+    if !uid.is_empty() {
+        println!("  user id:   {uid}");
+    }
+    let user_type = field("UserType");
+    if !user_type.is_empty() {
+        println!("  user type: {user_type}");
     }
 }
 
-/// Generic renderer for authenticated list/collection endpoints whose exact
-/// shape varies. `--json` prints the raw API body verbatim; human mode gives a
-/// compact summary and falls back to pretty JSON when the shape is unfamiliar.
-pub fn print_authed(title: &str, v: &Value, json: bool) {
+/// Utility accounts linked to the login. Shape: `[{ wippId, accountType,
+/// accountId }]`; the API's `accountId` is the space-padded key, which we render
+/// in the familiar `NNNNNNN-N` form for utility accounts.
+pub fn print_accounts(v: &Value, json: bool) {
     if json {
         print_json(v);
         return;
     }
-    match v {
-        Value::Array(items) => {
-            if items.is_empty() {
-                println!("{title}: none");
-                return;
-            }
-            println!("{title} ({})\n", items.len());
-            for (i, item) in items.iter().enumerate() {
-                println!("  {}. {}", i + 1, summarize(item));
-            }
-        }
-        Value::Object(map) if map.is_empty() => println!("{title}: none"),
-        _ => {
-            println!("{title}:");
-            print_json(v);
-        }
+    let items = v.as_array().cloned().unwrap_or_default();
+    if items.is_empty() {
+        println!("no accounts linked to this login");
+        return;
     }
-}
-
-/// A one-line summary of a JSON object, preferring the fields these endpoints
-/// commonly carry; falls back to a compact JSON string.
-fn summarize(item: &Value) -> String {
-    let obj = match item.as_object() {
-        Some(o) => o,
-        None => return item.to_string(),
-    };
-    let get = |k: &str| obj.get(k).and_then(Value::as_str).map(str::to_string);
-    let label = get("accountLabelSummary")
-        .or_else(|| get("nickname"))
-        .or_else(|| get("description"))
-        .or_else(|| get("accountId").map(|a| a.trim().to_string()))
-        .or_else(|| get("formattedId"))
-        .or_else(|| get("status"));
-    let amount = obj
-        .get("amount")
-        .or_else(|| obj.get("amt"))
-        .and_then(Value::as_f64);
-    match (label, amount) {
-        (Some(l), Some(a)) => format!("{l}  {}", money(a)),
-        (Some(l), None) => l,
-        (None, Some(a)) => money(a),
-        (None, None) => serde_json::to_string(item).unwrap_or_default(),
+    println!("Linked accounts ({})\n", items.len());
+    for (i, item) in items.iter().enumerate() {
+        let get = |k: &str| item.get(k).and_then(Value::as_str).unwrap_or("");
+        let acct_type = get("accountType");
+        let raw = get("accountId");
+        let display = if acct_type.eq_ignore_ascii_case("UTILITY") {
+            crate::acct::dash_raw_utility(raw)
+        } else {
+            raw.trim().to_string()
+        };
+        let type_label = if acct_type.is_empty() {
+            String::new()
+        } else {
+            format!("  ({})", acct_type.to_lowercase())
+        };
+        println!("  {}. {display}{type_label}", i + 1);
     }
 }

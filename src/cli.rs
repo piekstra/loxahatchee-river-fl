@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::Shell;
 
 /// View account, billing, and payment information for Loxahatchee River District
 /// utilities from the command line.
@@ -109,29 +110,22 @@ pub enum Command {
         action: ConfigAction,
     },
 
-    /// Log in with your portal email + password (stores a refresh token in the OS keychain).
+    /// Log in with your portal email + password (stored in the OS keychain).
     ///
-    /// The password is read from a no-echo prompt (or stdin if piped) and is
-    /// never stored — only the resulting refresh token goes in the keychain.
+    /// The password is read from a no-echo prompt (or stdin if piped). The
+    /// district's FIS session is cookie-based with no long-lived token to keep,
+    /// so the password is the stored credential and a fresh session is minted per
+    /// command; it is never written to disk in plaintext.
     Login,
 
     /// Log out: remove the stored session from the keychain.
     Logout,
 
-    /// Show whether you're logged in (never reveals the token).
+    /// Show who you're logged in as (name and identity from the session token).
     Whoami,
-
-    /// Show your logged-in profile (name, email, phone). Requires login.
-    Profile,
 
     /// List the utility accounts linked to your login. Requires login.
     Accounts,
-
-    /// List your scheduled payments. Requires login.
-    Schedules,
-
-    /// List your saved wallet accounts / payment methods. Requires login.
-    Wallet,
 
     /// Update lrfl to the latest release from GitHub.
     #[command(name = "self-update")]
@@ -139,6 +133,13 @@ pub enum Command {
         /// Only check whether an update is available; don't install it.
         #[arg(long)]
         check: bool,
+    },
+
+    /// Print a shell completion script (e.g. `lrfl completions zsh`).
+    Completions {
+        /// Shell to generate completions for.
+        #[arg(value_enum)]
+        shell: Shell,
     },
 }
 

@@ -98,34 +98,34 @@ the `x-recaptcha-token` header). So `lrfl pay` deliberately hands off to the
 portal's Pay Now page — `https://wipp.edmundsgovtech.cloud/view/wippUtil/{dashed
 id}?wippId=LOXA` — rather than handling a card.
 
-## Authenticated endpoints
+## Authenticated endpoints (verified against a live login)
 
-Login (AWS Cognito) unlocks the profile, linked accounts, wallet, and scheduled
-payments. `lrfl` stores only the refresh token (OS keychain) and trades it for a
-fresh access token per call. Reverse-engineered from the SPA; response shapes for
-the list endpoints are handled defensively (rendered best-effort, raw in `--json`)
-until confirmed against a live session.
+Loxahatchee accounts authenticate through the **SunGard / FIS ("Link2Gov")**
+identity provider (`fisVersion: 2`), proxied by wipp-core — **not** the Cognito
+`/auth` path that some other WIPP tenants use. Login is two hops over one cookie
+session:
 
-**Auth envelope** — `POST /auth` and `POST /auth/refreshToken` answer with
-`{ status: "SUCCESS", data: { accessToken, refreshToken, … }, message }`. A
-`message` of `New_Password_Required` means the account must reset its password in
-the portal first. Wrong/unknown credentials frequently surface as a bare
-`(500) …` string rather than a 401 — treat non-`SUCCESS` as an auth failure.
+1. `POST {FIS_PROXY}/rest/1.0/sessions` — body `{ loginName, password }`, header
+   `api-type: auth`. On success → `200` and **Set-Cookie** session cookies (empty
+   body). Wrong credentials → `400` (occasionally `401`/`500`), no useful body.
+2. `GET {FIS_PROXY}/rest/1.0/idptoken/openid-connect?client_id=Enroll.User` (with
+   the session cookies) → `{ "id_token": "<JWT>" }`.
 
-- **Auth:** `POST /auth` `{email, password}`; `POST /auth/refreshToken`
-  `{email, refreshToken}`; also `/forgotPassword`, `/resetForgottenPassword`,
-  `/changePassword`. Authenticated calls add `Authorization: Bearer <accessToken>`
-  \+ `X-Wipp-Id` (+ browser UA). → powers `login` / `logout` / `whoami`.
-- **Profile:** `GET /accounts/cognitoUsers` → `{firstName, lastName, email,
-  phoneNumber}` (also `POST /add`, update, delete). → powers `profile`.
-- **Linked billing accounts:** `GET /accounts/billingAccounts`. Per-account autopay
-  at `…/billingAccounts/{type}/{id}/autopay/{billingGroupId}`. → powers `accounts`.
-- **Wallet / payment methods:** `GET /wallet/Accounts`, `/wallet/PaymentMethods`,
-  `/wallet/{id}` (POST/DELETE to manage). → powers `wallet`.
-- **Scheduled payments:** `GET /payments/schedules`; `POST /payments/schedules/
-  one-time`, `PUT /payments/schedules/one-time/{id}` (writes are reCAPTCHA-gated).
-  → powers `schedules`.
-- **Autopay:** `GET {base}/autopay/associatedAccounts?methodId={id}`.
+`FIS_PROXY` = `https://api.edmundsgovtech.cloud/wipp-core/proxy/fis`. The
+`id_token` is a short-lived JWT; its claims are `{ sub (login), UID, FirstName,
+UserType, LastLoginDate, exp, iat, iss, aud, jti, nbf }`. Use it as
+`Authorization: Bearer <id_token>` (+ `X-Wipp-Id`) for authenticated wipp-core
+calls. `lrfl` stores the **password** (keychain) and re-runs both hops per command
+to mint a fresh token — the FIS session is cookie-based with no client-visible
+refresh token to persist. → powers `login` / `logout` / `whoami`.
 
-Not yet wired: creating/editing scheduled payments, wallet management, and autopay
-enrollment (the write paths, several reCAPTCHA-gated). Reads are implemented.
+- **Linked accounts:** `GET /accounts/billingAccounts` → `[{ wippId, fisUserId,
+  accountType, accountId }]` (the `accountId` is the space-padded key). **Works
+  for FIS users.** → powers `accounts`.
+
+**Cognito-only endpoints (403/401/500 for FIS users, so not shipped):**
+`GET /accounts/cognitoUsers` (profile) → `403 Access denied`;
+`GET /payments/schedules` and `GET /wallet/Accounts` → `500` (or `401` with an
+`api-type`). These belong to the Cognito user model / features LOXA doesn't expose
+to FIS logins. Also present but not wired (write paths, several reCAPTCHA-gated):
+`POST /payments/schedules/one-time`, wallet management, autopay enrollment.
