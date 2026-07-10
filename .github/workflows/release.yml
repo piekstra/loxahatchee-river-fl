@@ -1,0 +1,44 @@
+name: release
+
+# Tag a release to build binaries and attach them to the GitHub release, which
+# is what `lrfl self-update` downloads. Asset names embed the Rust target triple
+# so `self_update` picks the right one per platform.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: package
+        run: |
+          tar -C target/${{ matrix.target }}/release -czf lrfl-${{ matrix.target }}.tar.gz lrfl
+          shasum -a 256 lrfl-${{ matrix.target }}.tar.gz > lrfl-${{ matrix.target }}.tar.gz.sha256
+      - name: upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            lrfl-${{ matrix.target }}.tar.gz
+            lrfl-${{ matrix.target }}.tar.gz.sha256

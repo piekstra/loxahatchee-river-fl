@@ -6,9 +6,12 @@ Guidance for AI agents working in this repo.
 
 A Rust CLI (`lrfl`) over the **WIPP** (Edmunds GovTech / SunGard) utility-billing
 API that powers the Loxahatchee River District payment portal (tenant `LOXA`).
-Read commands are anonymous **guest-view** lookups by account number — no
-credentials, no stored secrets. `lrfl pay` computes what's owed and hands off to
-the portal's PCI-compliant Pay Now page rather than touching card data.
+Guest commands are anonymous **guest-view** lookups by account number — no
+credentials. Authenticated commands (`login`, `profile`, `accounts`, `schedules`,
+`wallet`) use an AWS Cognito session; only the refresh token is stored (OS
+keychain), traded for a fresh access token per call. `lrfl pay` computes what's
+owed and hands off to the portal's PCI-compliant Pay Now page rather than touching
+card data. `lrfl self-update` pulls the latest GitHub release.
 
 ## Build / test / run
 
@@ -25,21 +28,26 @@ cargo fmt --all
 ## Layout
 
 - `src/cli.rs` — clap arg/command definitions.
-- `src/client.rs` — the `Wipp` HTTP client: tenant header, browser UA, and the
-  async submit-then-poll `/requests/{id}` pattern.
+- `src/client.rs` — the `Wipp` HTTP client: tenant header, browser UA, the async
+  submit-then-poll `/requests/{id}` pattern, and the Cognito auth calls.
 - `src/acct.rs` — utility account-id parsing (`NNNNNNN-N` ↔ padded API key). Tested.
 - `src/account.rs` — the normalized `Account`/`ServiceCharge` model, the
   amount-due math, and defensive JSON parsing. Tested.
 - `src/model.rs` — `District`, `Payment`, `AccountStatus` models. Tested.
-- `src/config.rs` — the saved default-account file (not a secret).
+- `src/secrets.rs` — `Secret` (redacts/zeroizes) + keychain `CredentialStore`. Tested.
+- `src/session.rs` — login/logout/refresh-on-use; refresh token in the keychain.
+- `src/update.rs` — `self-update` via GitHub releases (`self_update` crate).
+- `src/config.rs` — saved default-account + login-email files (not secrets).
 - `src/output.rs` — human vs `--json` rendering, incl. owner redaction.
-- `src/main.rs` — wiring, account resolution, date helpers, browser opener.
+- `src/main.rs` — wiring, account resolution, date helpers, browser opener,
+  password/email prompts.
 - `docs/wipp-api.md` — the discovered API (endpoints, shapes, gotchas). No PII.
+- `.github/workflows/release.yml` — tag `v*` → build binaries `self-update` fetches.
 
 ## When chaining as an agent
 
 - Use `--json`. stdout is pure JSON; stderr is diagnostics.
-- Respect exit codes (see README): `2` usage, `4` not found, `5` network,
+- Respect exit codes (see README): `2` usage, `3` auth, `4` not found, `5` network,
   `6` rate-limited, `7` async timeout.
 - The field you usually want is `.balance_due` (or `.payments[].amount`).
 
@@ -59,3 +67,9 @@ cargo fmt --all
 - Be polite: this is a public portal at human scale. No aggressive looping.
 - Card payments intentionally go through the portal (reCAPTCHA + gateway). Don't
   add code that posts card data.
+- **Auth is reverse-engineered and only partly verifiable without real creds.**
+  Login (`POST /auth`) returns bad-credential failures as a bare `(500)` — treat
+  non-`SUCCESS` envelopes as auth failures. Only the refresh token is persisted
+  (keychain); never store the password or access token. The authed list renderers
+  (`accounts`/`schedules`/`wallet`) are deliberately shape-tolerant (raw in
+  `--json`) since their exact fields aren't yet confirmed against a live session.

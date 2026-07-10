@@ -6,7 +6,11 @@ mod config;
 mod error;
 mod model;
 mod output;
+mod secrets;
+mod session;
+mod update;
 
+use std::io::{IsTerminal, Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
@@ -18,6 +22,50 @@ use cli::{AccountArg, Cli, Command, ConfigAction};
 use client::Wipp;
 use error::AppError;
 use model::{AccountStatus, District, Payment};
+use secrets::Secret;
+use session::Session;
+
+/// Resolve the login email and a fresh access token for an authenticated command.
+fn authed(cli: &Cli, api: &Wipp, session: &Session) -> Result<(String, String), AppError> {
+    let email = session.resolve_email(cli.email.as_deref())?;
+    let token = session.access_token(api, &email)?;
+    Ok((email, token))
+}
+
+/// Read a secret (the password) from a no-echo TTY prompt, or from stdin if piped.
+fn read_password(prompt: &str) -> Result<Secret, AppError> {
+    if std::io::stdin().is_terminal() {
+        let v = rpassword::prompt_password(prompt)
+            .map_err(|e| AppError::Other(format!("reading password: {e}")))?;
+        Ok(Secret::new(v))
+    } else {
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|e| AppError::Other(format!("reading stdin: {e}")))?;
+        Ok(Secret::new(buf.trim().to_string()))
+    }
+}
+
+/// Prompt for a line of non-secret input (e.g. the login email) on a TTY.
+fn prompt_line(label: &str) -> Result<String, AppError> {
+    if !std::io::stdin().is_terminal() {
+        return Err(AppError::Usage(format!(
+            "{label} required — pass --email or set $LRFL_EMAIL"
+        )));
+    }
+    eprint!("{label}: ");
+    std::io::stderr().flush().ok();
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .map_err(|e| AppError::Other(format!("reading input: {e}")))?;
+    let v = line.trim().to_string();
+    if v.is_empty() {
+        return Err(AppError::Usage(format!("no {label} provided")));
+    }
+    Ok(v)
+}
 
 /// Resolve the account: positional arg / `$LRFL_ACCOUNT`, then the saved default.
 fn resolve_account(arg: &AccountArg) -> Result<AccountId, AppError> {
@@ -37,12 +85,15 @@ fn resolve_account(arg: &AccountArg) -> Result<AccountId, AppError> {
 }
 
 fn run(cli: Cli) -> Result<(), AppError> {
-    // `config` needs no network; handle it before building a client.
-    if let Command::Config { action } = &cli.command {
-        return run_config(action, &cli);
+    // These commands don't talk to the WIPP API; handle them before building a client.
+    match &cli.command {
+        Command::Config { action } => return run_config(action, &cli),
+        Command::SelfUpdate { check } => return run_self_update(*check, &cli),
+        _ => {}
     }
 
     let api = Wipp::new(cli.wipp_id.clone())?;
+    let session = Session::new();
     let log = |msg: &str| {
         if cli.verbose && !cli.quiet {
             eprintln!("{msg}");
@@ -148,7 +199,132 @@ fn run(cli: Cli) -> Result<(), AppError> {
             output::print_district(&district, cli.json);
         }
 
-        Command::Config { .. } => unreachable!("handled above"),
+        Command::Login => {
+            let email = match session.resolve_email(cli.email.as_deref()) {
+                Ok(e) => e,
+                Err(_) => prompt_line("Portal email")?,
+            };
+            let password = read_password(&format!("Password for {email}: "))?;
+            if password.is_empty() {
+                return Err(AppError::Usage(
+                    "empty password — nothing to log in with".into(),
+                ));
+            }
+            log(&format!("authenticating {email}…"));
+            session.login(&api, &email, &password)?;
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "email": email, "logged_in": true, "store": "keychain" })
+                );
+            } else if !cli.quiet {
+                println!("✓ logged in as {email} — refresh token stored in the OS keychain");
+            }
+        }
+
+        Command::Logout => {
+            let email = session.resolve_email(cli.email.as_deref())?;
+            let removed = session.logout(&email)?;
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "email": email, "removed": removed })
+                );
+            } else if !cli.quiet {
+                if removed {
+                    println!("✓ logged out {email}");
+                } else {
+                    println!("no stored session for {email}");
+                }
+            }
+        }
+
+        Command::Whoami => {
+            let email = session.resolve_email(cli.email.as_deref()).ok();
+            let logged_in = email
+                .as_deref()
+                .map(|e| session.has_credential(e))
+                .unwrap_or(false);
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "email": email, "logged_in": logged_in })
+                );
+            } else {
+                match (&email, logged_in) {
+                    (Some(e), true) => println!("logged in as {e}"),
+                    (Some(e), false) => println!("not logged in ({e} has no stored session)"),
+                    (None, _) => println!("not logged in — run `lrfl login`"),
+                }
+            }
+        }
+
+        Command::Profile => {
+            let (_, token) = authed(&cli, &api, &session)?;
+            log("fetching profile");
+            let body = api.profile(&token)?;
+            output::print_profile(&body, cli.json);
+        }
+
+        Command::Accounts => {
+            let (_, token) = authed(&cli, &api, &session)?;
+            log("fetching linked billing accounts");
+            let body = api.billing_accounts(&token)?;
+            output::print_authed("Linked accounts", &body, cli.json);
+        }
+
+        Command::Schedules => {
+            let (_, token) = authed(&cli, &api, &session)?;
+            log("fetching scheduled payments");
+            let body = api.payment_schedules(&token)?;
+            output::print_authed("Scheduled payments", &body, cli.json);
+        }
+
+        Command::Wallet => {
+            let (_, token) = authed(&cli, &api, &session)?;
+            log("fetching wallet");
+            let body = api.wallet(&token)?;
+            output::print_authed("Wallet", &body, cli.json);
+        }
+
+        Command::Config { .. } | Command::SelfUpdate { .. } => unreachable!("handled above"),
+    }
+    Ok(())
+}
+
+fn run_self_update(check: bool, cli: &Cli) -> Result<(), AppError> {
+    if cli.verbose && !cli.quiet {
+        eprintln!("checking github releases for piekstra/loxahatchee-river-fl…");
+    }
+    let report = update::run(check)?;
+    if cli.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "current": report.current,
+                "latest": report.latest,
+                "updated": report.updated,
+                "check_only": report.check_only,
+            })
+        );
+        return Ok(());
+    }
+    if cli.quiet {
+        return Ok(());
+    }
+    if report.updated {
+        println!("✓ updated {} → {}", report.current, report.latest);
+    } else if report.check_only {
+        if report.latest != report.current {
+            println!(
+                "update available: {} → {} (run `lrfl self-update`)",
+                report.current, report.latest
+            );
+        } else {
+            println!("up to date ({})", report.current);
+        }
+    } else {
+        println!("already on the latest release ({})", report.current);
     }
     Ok(())
 }

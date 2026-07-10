@@ -55,6 +55,40 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl open [ACCT]` | Open the account's portal page in your browser |
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
+| `lrfl login` / `logout` / `whoami` | Manage a logged-in session (refresh token in the OS keychain) |
+| `lrfl profile` | Your account holder profile (name, email, phone) — requires login |
+| `lrfl accounts` | Utility accounts linked to your login — requires login |
+| `lrfl schedules` | Your scheduled payments — requires login |
+| `lrfl wallet` | Your saved payment methods — requires login |
+| `lrfl self-update` | Update `lrfl` to the latest GitHub release (`--check` to only check) |
+
+### Logging in
+
+Guest reads (`balance`, `charges`, `history`, …) need no login. The authenticated
+commands (`profile`, `accounts`, `schedules`, `wallet`) use your portal account:
+
+```sh
+lrfl login                    # prompts for email + password (no-echo)
+lrfl whoami                   # ✓ logged in as you@example.com
+lrfl accounts                 # utility accounts on your login
+lrfl profile --json
+lrfl logout                   # removes the stored session
+```
+
+Login exchanges your email + password for an AWS Cognito token set. **Only the
+long-lived refresh token is stored, in the OS keychain** (macOS Keychain) — never
+your password, never the short-lived access token. Each authenticated command
+trades the refresh token for a fresh access token at call time. `--email` /
+`$LRFL_EMAIL` pick the account; `$LRFL_REFRESH_TOKEN` can supply the token in
+headless/CI use. You can pipe the password on stdin (`echo "$PW" | lrfl login
+--email you@example.com`) for scripting.
+
+### Staying up to date
+
+```sh
+lrfl self-update --check      # is a newer release available?
+lrfl self-update              # download + replace the binary in place
+```
 
 ### Account numbers
 
@@ -93,9 +127,10 @@ someone's identity just because you typed a number. Pass `--show-owner` to revea
 them for an account you own. The district's own portal redacts owner names too;
 this tool honors that.
 
-The tool stores **no secrets** — only, optionally, your default account number in
-a plain file under `~/.config/loxahatchee-cli/` (an account number is not a
-credential).
+The only secret the tool ever stores is your login **refresh token**, in the OS
+keychain (never your password). Non-secret state — your default account number
+and login email — lives in plain files under `~/.config/loxahatchee-cli/`. Guest
+reads store nothing at all.
 
 ## Global flags
 
@@ -107,6 +142,7 @@ credential).
 | `--show-owner` | Reveal owner name/address (hidden by default) |
 | `--no-color` | Disable ANSI color (reserved) |
 | `--wipp-id <ID>` | WIPP tenant id (default `LOXA`; or `$LRFL_WIPP_ID`) |
+| `--email <EMAIL>` | Login email for authenticated commands (or `$LRFL_EMAIL`) |
 | `-V, --version` | Print version |
 | `-h, --help` | Help |
 
@@ -115,8 +151,9 @@ credential).
 | Code | Meaning |
 |------|---------|
 | `0` | success |
-| `1` | generic error |
+| `1` | generic error (incl. keychain failure) |
 | `2` | usage error (bad args / no account) |
+| `3` | authentication required or failed |
 | `4` | not found (no such account) |
 | `5` | network / upstream error |
 | `6` | rate-limited (HTTP 429) |
