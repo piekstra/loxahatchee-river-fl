@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  checks: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -14,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The Linux `keyring` backend (Secret Service) links libdbus.
+      - name: install system deps
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -39,6 +46,9 @@ jobs:
         uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Transitive-only, not reachable via `lrfl self-update` (GitHub/JSON
+          # backend). See deny.toml for the rationale.
+          ignore: RUSTSEC-2026-0194,RUSTSEC-2026-0195,RUSTSEC-2025-0119
       - name: cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
