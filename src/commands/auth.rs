@@ -39,7 +39,7 @@ pub fn info(ctx: &Ctx) -> Result<(), AppError> {
     let info = CliInfo::new(
         "lrfl",
         env!("CARGO_PKG_VERSION"),
-        "https://github.com/piekstra/loxahatchee-river-fl",
+        "https://github.com/piekstra/loxahatchee-river-fl-cli",
         AuthInfo {
             required: false,
             method: "password".into(),

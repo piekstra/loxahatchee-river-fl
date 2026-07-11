@@ -8,7 +8,7 @@ use crate::error::AppError;
 use crate::update;
 
 pub fn run(ctx: &Ctx, check: bool) -> Result<(), AppError> {
-    ctx.log("checking github releases for piekstra/loxahatchee-river-fl…");
+    ctx.log("checking github releases for piekstra/loxahatchee-river-fl-cli…");
     let args = SelfUpdateArgs {
         check,
         yes: true,
