@@ -6,7 +6,7 @@ pub use pk_cli_selfupdate::{SelfUpdateArgs, Updater};
 
 pub fn updater() -> Updater {
     Updater {
-        repo: "piekstra/loxahatchee-river-fl".into(),
+        repo: "piekstra/loxahatchee-river-fl-cli".into(),
         binary: "lrfl".into(),
         target: env!("BUILD_TARGET").into(),
         current: env!("CARGO_PKG_VERSION").into(),
