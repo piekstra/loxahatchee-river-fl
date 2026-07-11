@@ -2,12 +2,12 @@
 
 use crate::account::Account;
 use crate::cli::AccountArg;
-use crate::commands::{resolve_account, Ctx};
+use crate::commands::Ctx;
 use crate::error::AppError;
 use crate::formatter;
 
 pub fn show(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
-    let id = resolve_account(arg)?;
+    let id = ctx.resolve_account(arg)?;
     ctx.log(&format!(
         "fetching account {} from {}",
         id.dashed(),
@@ -19,7 +19,7 @@ pub fn show(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
 }
 
 pub fn balance(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
-    let id = resolve_account(arg)?;
+    let id = ctx.resolve_account(arg)?;
     ctx.log(&format!("fetching balance for {}", id.dashed()));
     let acct = Account::from_node(&id.dashed(), &ctx.api.utility_account(&id)?);
     formatter::print_balance(&acct, ctx.json);
@@ -27,7 +27,7 @@ pub fn balance(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
 }
 
 pub fn charges(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
-    let id = resolve_account(arg)?;
+    let id = ctx.resolve_account(arg)?;
     ctx.log(&format!("fetching charges for {}", id.dashed()));
     let acct = Account::from_node(&id.dashed(), &ctx.api.utility_account(&id)?);
     formatter::print_charges(&acct, ctx.json);
