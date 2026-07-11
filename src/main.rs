@@ -24,14 +24,17 @@ fn run(cli: Cli) -> Result<(), AppError> {
             account,
             since,
             years,
-        } => commands::history::run(&ctx, account, since.as_deref(), *years),
+            limit,
+        } => commands::history::run(&ctx, account, since.as_deref(), *years, *limit),
         Command::Pay { account, open } => commands::pay::pay(&ctx, account, *open),
         Command::Open(a) => commands::pay::open(&ctx, a),
         Command::District => commands::district::run(&ctx),
         Command::Config { action } => commands::config::run(&ctx, action),
+        Command::Auth(cmd) => commands::auth::run(&ctx, cmd),
         Command::Login => commands::auth::login(&ctx),
         Command::Logout => commands::auth::logout(&ctx),
         Command::Whoami => commands::auth::whoami(&ctx),
+        Command::Info => commands::auth::info(&ctx),
         Command::Accounts { balances } => commands::accounts::run(&ctx, *balances),
         Command::SelfUpdate { check } => commands::self_update::run(&ctx, *check),
         Command::Completions { .. } => unreachable!("handled above"),
@@ -40,11 +43,8 @@ fn run(cli: Cli) -> Result<(), AppError> {
 
 fn main() {
     let cli = Cli::parse();
-    let quiet = cli.quiet;
+    let json_mode = cli.json;
     if let Err(e) = run(cli) {
-        if !quiet {
-            eprintln!("error: {e}");
-        }
-        std::process::exit(e.exit_code());
+        std::process::exit(pk_cli_core::output::fail(&e, json_mode));
     }
 }

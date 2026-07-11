@@ -1,6 +1,6 @@
 [package]
 name = "loxahatchee-river-fl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.74"
 description = "View account, billing, charges, and payment history for Loxahatchee River District utilities from the command line — agent-friendly, JSON-capable."
@@ -25,22 +25,12 @@ clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "cookies"] }
 serde = { version = "1", features = ["derive"] }
+pk-cli-core = { git = "https://github.com/piekstra/cli-common", tag = "v0.1.2", features = ["reqwest"] }
+pk-cli-secrets = { git = "https://github.com/piekstra/cli-common", tag = "v0.1.2" }
+pk-cli-selfupdate = { git = "https://github.com/piekstra/cli-common", tag = "v0.1.2" }
+pk-cli-auth = { git = "https://github.com/piekstra/cli-common", tag = "v0.1.2" }
 serde_json = "1"
-anyhow = "1"
-rpassword = "7"
-zeroize = "1"
-self_update = { version = "0.42", default-features = false, features = ["rustls", "archive-tar", "compression-flate2"] }
 
-# Platform-native secret stores for the login session (the portal password):
-# macOS Keychain, Windows Credential Manager, Linux Secret Service (pure-Rust crypto).
-[target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3", features = ["apple-native"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 [profile.release]
 strip = true

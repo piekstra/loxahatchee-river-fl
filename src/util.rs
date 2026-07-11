@@ -12,10 +12,9 @@ use crate::error::AppError;
 /// Read a secret (the password) from a no-echo TTY prompt, or from stdin if piped.
 pub fn read_password(prompt: &str) -> Result<Secret, AppError> {
     if std::io::stdin().is_terminal() {
-        let v = rpassword::prompt_password(prompt)
-            .map_err(|e| AppError::Other(format!("reading password: {e}")))?;
-        Ok(Secret::new(v))
-    } else {
+        return Secret::prompt(prompt.trim_end_matches(": ").trim_end_matches(':'));
+    }
+    {
         let mut buf = String::new();
         std::io::stdin()
             .read_to_string(&mut buf)
