@@ -125,7 +125,11 @@ pub enum Command {
     Whoami,
 
     /// List the utility accounts linked to your login. Requires login.
-    Accounts,
+    Accounts {
+        /// Also fetch and show the amount due on each account.
+        #[arg(short, long)]
+        balances: bool,
+    },
 
     /// Update lrfl to the latest release from GitHub.
     #[command(name = "self-update")]

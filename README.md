@@ -56,7 +56,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
 | `lrfl login` / `logout` / `whoami` | Manage a logged-in session (credential in the OS keychain) |
-| `lrfl accounts` | Utility accounts linked to your login — requires login |
+| `lrfl accounts [-b/--balances]` | Utility accounts linked to your login (with amounts due) — requires login |
 | `lrfl self-update` | Update `lrfl` to the latest GitHub release (`--check` to only check) |
 | `lrfl completions <shell>` | Print a shell completion script |
 
@@ -68,9 +68,15 @@ Guest reads (`balance`, `charges`, `history`, …) need no login. Logging in add
 ```sh
 lrfl login                    # prompts for email + password (no-echo)
 lrfl whoami                   # who you're logged in as (name, user id)
-lrfl accounts                 # utility accounts linked to your login
+lrfl accounts --balances      # linked accounts, with what you owe on each
 lrfl logout                   # removes the stored session
 ```
+
+Once you're logged in, the account-scoped commands need **no account argument** —
+`lrfl balance`, `charges`, `history`, `status`, `pay` fall back to the utility
+account linked to your login (as long as you haven't set a different default with
+`config set-account`). If your login has more than one linked account, they'll ask
+you to pick one.
 
 Loxahatchee logins go through the district's SunGard/FIS identity provider, whose
 session is cookie-based with no long-lived token to persist. So `lrfl` stores your

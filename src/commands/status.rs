@@ -1,13 +1,13 @@
 //! `status` — per-service active/inactive status (an async portal lookup).
 
 use crate::cli::AccountArg;
-use crate::commands::{resolve_account, Ctx};
+use crate::commands::Ctx;
 use crate::error::AppError;
 use crate::formatter;
 use crate::model::AccountStatus;
 
 pub fn run(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
-    let id = resolve_account(arg)?;
+    let id = ctx.resolve_account(arg)?;
     ctx.log(&format!(
         "determining service status for {} (async)…",
         id.dashed()

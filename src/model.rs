@@ -91,6 +91,47 @@ impl District {
     }
 }
 
+/// A utility account linked to the logged-in user (from `/accounts/billingAccounts`).
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkedAccount {
+    /// Display id, `NNNNNNN-N` for utility accounts.
+    pub account_id: String,
+    /// Lower-cased account type (e.g. `utility`).
+    pub account_type: String,
+    /// Amount due, filled in only when balances were requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance_due: Option<f64>,
+}
+
+impl LinkedAccount {
+    /// Parse one `{ accountType, accountId }` node (balance left `None`).
+    pub fn from_node(v: &Value) -> LinkedAccount {
+        let account_type = string_at(v, "accountType");
+        let raw = v.get("accountId").and_then(Value::as_str).unwrap_or("");
+        let account_id = if account_type.eq_ignore_ascii_case("UTILITY") {
+            crate::acct::dash_raw_utility(raw)
+        } else {
+            raw.trim().to_string()
+        };
+        LinkedAccount {
+            account_id,
+            account_type: account_type.to_lowercase(),
+            balance_due: None,
+        }
+    }
+
+    /// Parse the whole `/accounts/billingAccounts` array.
+    pub fn list_from(body: &Value) -> Vec<LinkedAccount> {
+        body.as_array()
+            .map(|arr| arr.iter().map(LinkedAccount::from_node).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn is_utility(&self) -> bool {
+        self.account_type.eq_ignore_ascii_case("utility")
+    }
+}
+
 /// One posted payment from the account's history.
 #[derive(Debug, Clone, Serialize)]
 pub struct Payment {
@@ -191,5 +232,21 @@ mod tests {
         assert_eq!(status_word("A"), "active");
         assert_eq!(status_word("N"), "inactive");
         assert_eq!(status_word(" "), "inactive");
+    }
+
+    #[test]
+    fn linked_accounts_parse_and_dash_utility_ids() {
+        let body = json!([
+            { "wippId": "LOXA", "accountType": "UTILITY", "accountId": " 1234567  0" },
+            { "wippId": "LOXA", "accountType": "TAX", "accountId": "  00099  " }
+        ]);
+        let accts = LinkedAccount::list_from(&body);
+        assert_eq!(accts.len(), 2);
+        assert_eq!(accts[0].account_id, "1234567-0");
+        assert_eq!(accts[0].account_type, "utility");
+        assert!(accts[0].is_utility());
+        assert!(accts[0].balance_due.is_none());
+        assert_eq!(accts[1].account_id, "00099");
+        assert!(!accts[1].is_utility());
     }
 }

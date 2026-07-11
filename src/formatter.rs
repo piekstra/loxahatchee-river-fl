@@ -6,7 +6,7 @@
 use serde_json::{json, Value};
 
 use crate::account::Account;
-use crate::model::{status_word, AccountStatus, District, Payment};
+use crate::model::{status_word, AccountStatus, District, LinkedAccount, Payment};
 
 const HIDDEN: &str = "(hidden — pass --show-owner)";
 
@@ -312,34 +312,36 @@ pub fn print_whoami(login: Option<&str>, claims: Option<&Value>, json: bool) {
     }
 }
 
-/// Utility accounts linked to the login. Shape: `[{ wippId, accountType,
-/// accountId }]`; the API's `accountId` is the space-padded key, which we render
-/// in the familiar `NNNNNNN-N` form for utility accounts.
-pub fn print_accounts(v: &Value, json: bool) {
+/// Utility accounts linked to the login (from `--json` the raw normalized list).
+/// Balances are shown only when they were requested (`accounts --balances`).
+pub fn print_accounts(accounts: &[LinkedAccount], json: bool) {
     if json {
-        print_json(v);
+        print_json(&serde_json::to_value(accounts).expect("serialize accounts"));
         return;
     }
-    let items = v.as_array().cloned().unwrap_or_default();
-    if items.is_empty() {
+    if accounts.is_empty() {
         println!("no accounts linked to this login");
         return;
     }
-    println!("Linked accounts ({})\n", items.len());
-    for (i, item) in items.iter().enumerate() {
-        let get = |k: &str| item.get(k).and_then(Value::as_str).unwrap_or("");
-        let acct_type = get("accountType");
-        let raw = get("accountId");
-        let display = if acct_type.eq_ignore_ascii_case("UTILITY") {
-            crate::acct::dash_raw_utility(raw)
-        } else {
-            raw.trim().to_string()
-        };
-        let type_label = if acct_type.is_empty() {
+    println!("Linked accounts ({})\n", accounts.len());
+    for (i, a) in accounts.iter().enumerate() {
+        let type_label = if a.account_type.is_empty() {
             String::new()
         } else {
-            format!("  ({})", acct_type.to_lowercase())
+            format!("  ({})", a.account_type)
         };
-        println!("  {}. {display}{type_label}", i + 1);
+        let bal = a
+            .balance_due
+            .map(|b| format!("   {} due", money(b)))
+            .unwrap_or_default();
+        println!("  {}. {}{type_label}{bal}", i + 1, a.account_id);
+    }
+    let total: f64 = accounts.iter().filter_map(|a| a.balance_due).sum();
+    if accounts.iter().any(|a| a.balance_due.is_some()) {
+        println!(
+            "\n  {} due across {} account(s)",
+            money(total),
+            accounts.len()
+        );
     }
 }
