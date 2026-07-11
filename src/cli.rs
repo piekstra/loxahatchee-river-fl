@@ -57,6 +57,9 @@ pub struct AccountArg {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// One-shot overview: balance, per-service status, and last payment.
+    Summary(AccountArg),
+
     /// Show the full account record: owner, service location, and balance.
     Account(AccountArg),
 
