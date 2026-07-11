@@ -73,6 +73,69 @@ pub fn print_account(a: &Account, show_owner: bool, json: bool) {
     }
 }
 
+/// A combined overview: balance, per-service status, and the last payment.
+pub fn print_summary(
+    a: &Account,
+    status: Option<&AccountStatus>,
+    last_payment: Option<&Payment>,
+    show_owner: bool,
+    json: bool,
+) {
+    if json {
+        let services: Vec<Value> = a
+            .charges
+            .iter()
+            .map(|c| {
+                let code = status.map(|s| s.code_for(&c.service)).unwrap_or("");
+                json!({
+                    "service": c.service,
+                    "amount_due": c.amount_due,
+                    "due_date": c.current_due_date,
+                    "status": status.map(|_| status_word(code)),
+                })
+            })
+            .collect();
+        let mut out = json!({
+            "account": a.id,
+            "balance_due": a.balance_due,
+            "services": services,
+            "last_payment": last_payment.map(|p| serde_json::to_value(p).unwrap()),
+        });
+        if show_owner {
+            out["owner"] = serde_json::to_value(&a.owner).unwrap_or(Value::Null);
+        }
+        print_json(&out);
+        return;
+    }
+
+    println!("Account {}", a.id);
+    if show_owner && !a.owner.name.is_empty() {
+        println!("  {}", a.owner.name);
+    }
+    println!("  Balance due:  {}", money(a.balance_due));
+    println!();
+    for c in &a.charges {
+        let status_tag = status
+            .map(|s| format!("   [{}]", status_word(s.code_for(&c.service))))
+            .unwrap_or_default();
+        println!(
+            "  {:<10} {:>10}   due {}{status_tag}",
+            c.service,
+            money(c.amount_due),
+            or_dash(&c.current_due_date)
+        );
+    }
+    match last_payment {
+        Some(p) => println!(
+            "\n  Last payment: {} on {} ({})",
+            money(p.amount),
+            or_dash(&p.payment_date),
+            or_dash(&p.method)
+        ),
+        None => println!("\n  Last payment: none on record"),
+    }
+}
+
 pub fn print_balance(a: &Account, json: bool) {
     if json {
         print_json(&json!({

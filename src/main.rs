@@ -15,6 +15,7 @@ fn run(cli: Cli) -> Result<(), AppError> {
 
     let ctx = Ctx::new(&cli)?;
     match &cli.command {
+        Command::Summary(a) => commands::summary::run(&ctx, a),
         Command::Account(a) => commands::account::show(&ctx, a),
         Command::Balance(a) => commands::account::balance(&ctx, a),
         Command::Charges(a) => commands::account::charges(&ctx, a),

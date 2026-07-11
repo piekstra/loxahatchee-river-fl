@@ -46,6 +46,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 
 | Command | What it shows |
 |---------|---------------|
+| `lrfl summary [ACCT]` | One-shot overview: balance, per-service status, last payment |
 | `lrfl balance [ACCT]` | Amount due, per service and total |
 | `lrfl account [ACCT]` | Full record: balance, service location, owner (hidden by default) |
 | `lrfl charges [ACCT]` | Principal/interest, due dates, billed-YTD, meter readings & usage |

@@ -13,6 +13,7 @@ pub mod history;
 pub mod pay;
 pub mod self_update;
 pub mod status;
+pub mod summary;
 
 use crate::acct::AccountId;
 use crate::auth::Session;

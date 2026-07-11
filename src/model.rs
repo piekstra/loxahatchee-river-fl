@@ -179,6 +179,19 @@ impl AccountStatus {
     }
 }
 
+impl AccountStatus {
+    /// The status code for a charge's service name (`Sewer`, `Water`, …).
+    pub fn code_for(&self, service: &str) -> &str {
+        match service.trim().to_lowercase().as_str() {
+            "water" => &self.water,
+            "sewer" => &self.sewer,
+            "electric" => &self.electric,
+            "other" => &self.other,
+            _ => "",
+        }
+    }
+}
+
 /// Expand a one-letter service-status code to a word.
 pub fn status_word(code: &str) -> &'static str {
     match code.trim() {
