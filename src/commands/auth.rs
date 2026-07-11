@@ -46,7 +46,8 @@ pub fn info(ctx: &Ctx) -> Result<(), AppError> {
             login_hint: Some("lrfl auth login".into()),
         },
         &[
-            "account", "balance", "charges", "status", "history", "pay", "district", "accounts",
+            "summary", "account", "balance", "charges", "status", "history", "pay", "district",
+            "accounts",
         ],
     );
     pk_cli_core::output::json(&serde_json::to_value(&info).unwrap_or_default());
