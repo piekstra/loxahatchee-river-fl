@@ -7,7 +7,13 @@ use crate::formatter;
 use crate::model::Payment;
 use crate::util;
 
-pub fn run(ctx: &Ctx, arg: &AccountArg, since: Option<&str>, years: u32) -> Result<(), AppError> {
+pub fn run(
+    ctx: &Ctx,
+    arg: &AccountArg,
+    since: Option<&str>,
+    years: u32,
+    limit: Option<usize>,
+) -> Result<(), AppError> {
     let id = ctx.resolve_account(arg)?;
     let after = match since {
         Some(d) => util::validate_date(d)?,
@@ -24,6 +30,9 @@ pub fn run(ctx: &Ctx, arg: &AccountArg, since: Option<&str>, years: u32) -> Resu
         .unwrap_or_default();
     // Most recent first.
     payments.sort_by(|a, b| b.payment_date.cmp(&a.payment_date));
+    if let Some(n) = limit {
+        payments.truncate(n);
+    }
     formatter::print_history(&id.dashed(), &payments, ctx.json);
     Ok(())
 }

@@ -105,7 +105,7 @@ impl Wipp {
             404 => Err(AppError::NotFound(
                 body_message(&body).unwrap_or_else(|| ctx.to_string()),
             )),
-            _ => Err(AppError::Network(format!(
+            _ => Err(AppError::Upstream(format!(
                 "HTTP {status} from {ctx}: {}",
                 body_message(&body).unwrap_or_else(|| "no detail".into())
             ))),
@@ -142,7 +142,7 @@ impl Wipp {
                 "no utility account {}",
                 id.dashed()
             ))),
-            _ => Err(AppError::Network(format!(
+            _ => Err(AppError::Upstream(format!(
                 "HTTP {s} looking up account {}: {}",
                 id.dashed(),
                 body_message(&b).unwrap_or_else(|| "no detail".into())
@@ -178,7 +178,7 @@ impl Wipp {
             return Ok(body);
         }
         if status != 202 {
-            return Err(AppError::Network(format!(
+            return Err(AppError::Upstream(format!(
                 "HTTP {status} starting {ctx}: {}",
                 body_message(&body).unwrap_or_else(|| "no detail".into())
             )));
@@ -196,7 +196,7 @@ impl Wipp {
                 200 => return Ok(b),
                 202 => {
                     if std::time::Instant::now() >= deadline {
-                        return Err(AppError::Timeout(format!(
+                        return Err(AppError::Upstream(format!(
                             "{ctx} was still processing after {}s",
                             POLL_BUDGET.as_secs()
                         )));
@@ -204,7 +204,7 @@ impl Wipp {
                     sleep(POLL_INTERVAL);
                 }
                 other => {
-                    return Err(AppError::Network(format!(
+                    return Err(AppError::Upstream(format!(
                         "HTTP {other} polling {ctx}: {}",
                         body_message(&b).unwrap_or_else(|| "no detail".into())
                     )))
@@ -295,7 +295,7 @@ impl Wipp {
             404 => Err(AppError::NotFound(
                 body_message(&body).unwrap_or_else(|| ctx.to_string()),
             )),
-            _ => Err(AppError::Network(format!(
+            _ => Err(AppError::Upstream(format!(
                 "HTTP {status} from {ctx}: {}",
                 body_message(&body).unwrap_or_else(|| "no detail".into())
             ))),
@@ -329,7 +329,9 @@ fn fis_error(status: u16, body: &Value) -> String {
 fn parse_response(resp: reqwest::blocking::Response) -> Result<(u16, Value), AppError> {
     let status = resp.status().as_u16();
     if status == 429 {
-        return Err(AppError::RateLimited);
+        return Err(AppError::Upstream(
+            "rate limited by the portal (HTTP 429) — slow down and retry".into(),
+        ));
     }
     let text = resp.text()?;
     // The API returns JSON on success and a bare `(NNN) message` string on some

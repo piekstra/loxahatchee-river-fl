@@ -100,7 +100,7 @@ impl Session {
     /// Mint a fresh `id_token` for `login` by performing the FIS login with the
     /// stored password.
     pub fn access_token(&self, api: &Wipp, login: &str) -> Result<String, AppError> {
-        let password = self.store.resolve(login, ENV_PASSWORD)?;
+        let password = crate::auth::secrets::resolve(&self.store, login, ENV_PASSWORD)?;
         api.fis_login(login, password.expose())
     }
 }

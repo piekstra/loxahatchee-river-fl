@@ -84,6 +84,10 @@ pub enum Command {
         /// Look back this many years (ignored if --since is given).
         #[arg(long, default_value_t = 3)]
         years: u32,
+
+        /// Only show the most recent N payments.
+        #[arg(long, value_name = "N")]
+        limit: Option<usize>,
     },
 
     /// Compute the amount due and hand off to the official portal to pay.
@@ -112,6 +116,10 @@ pub enum Command {
         #[command(subcommand)]
         action: ConfigAction,
     },
+
+    /// Credential management: login, logout, status, whoami.
+    #[command(subcommand)]
+    Auth(AuthCmd),
 
     /// Log in with your portal email + password (stored in the OS keychain).
     ///
@@ -142,12 +150,27 @@ pub enum Command {
         check: bool,
     },
 
+    /// Machine-readable capability discovery (cli-info/v1).
+    Info,
+
     /// Print a shell completion script (e.g. `lrfl completions zsh`).
     Completions {
         /// Shell to generate completions for.
         #[arg(value_enum)]
         shell: Shell,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AuthCmd {
+    /// Log in with your portal email + password (stored in the OS keychain).
+    Login,
+    /// Log out: remove the stored credential from the keychain.
+    Logout,
+    /// Credential and session status (auth-status/v1 with --json).
+    Status,
+    /// Show who you're logged in as (identity from the session token).
+    Whoami,
 }
 
 #[derive(Subcommand, Debug)]
