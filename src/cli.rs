@@ -123,16 +123,17 @@ pub enum Command {
 
     /// Log in with your portal email + password (stored in the OS keychain).
     ///
-    /// The password is read from a no-echo prompt (or stdin if piped). The
-    /// district's FIS session is cookie-based with no long-lived token to keep,
-    /// so the password is the stored credential and a fresh session is minted per
-    /// command; it is never written to disk in plaintext.
+    /// Hidden alias for `auth login` (the canonical piekstra-cli/1 spelling),
+    /// kept for back-compat.
+    #[command(hide = true)]
     Login,
 
-    /// Log out: remove the stored session from the keychain.
+    /// Hidden alias for `auth logout`, kept for back-compat.
+    #[command(hide = true)]
     Logout,
 
-    /// Show who you're logged in as (name and identity from the session token).
+    /// Hidden alias for `auth whoami`, kept for back-compat.
+    #[command(hide = true)]
     Whoami,
 
     /// List the utility accounts linked to your login. Requires login.
