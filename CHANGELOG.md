@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.0 — 2026-07-19
+
+### Added
+- **`lrfl bill [ACCT]`** — the account's current bill, parsed from the official
+  PDF (onlinebiller.com). Surfaces data the WIPP API redacts/omits: the bill-to
+  **owner name + full mailing address** and **AutoPay status**, plus service
+  address, statement date, service period, last payment, and total due. `--open`
+  opens the PDF in a browser; `--save PATH` downloads it; `--json` emits the
+  fields. (Owner shows for owner-billed accounts; occupant-billed ones read
+  `OCCUPANT`.) Adds a pure-Rust PDF text dependency (`pdf-extract`).
+
 ## v0.3.1 — 2026-07-19
 
 ### Added
