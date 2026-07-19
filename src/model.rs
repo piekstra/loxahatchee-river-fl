@@ -319,6 +319,25 @@ mod tests {
     }
 
     #[test]
+    fn account_match_json_hydration_fields_are_optional() {
+        // A plain search row: no balance and no bill yet, so `--json` omits both.
+        let mut m = AccountMatch::from_node(&json!({
+            "accountId": "  226400  0", "propertyLoc": "348 MAPLE RD"
+        }));
+        let bare = serde_json::to_value(&m).unwrap();
+        assert_eq!(bare["account_id"], "226400-0");
+        assert!(bare.get("balance_due").is_none());
+        assert!(bare.get("bill").is_none());
+
+        // With `--balances`/`--full` they are populated and do serialize.
+        m.balance_due = Some(12.5);
+        m.bill = Some(crate::bill::Bill::default());
+        let full = serde_json::to_value(&m).unwrap();
+        assert_eq!(full["balance_due"], 12.5);
+        assert!(full.get("bill").is_some());
+    }
+
+    #[test]
     fn linked_accounts_parse_and_dash_utility_ids() {
         let body = json!([
             { "wippId": "LOXA", "accountType": "UTILITY", "accountId": " 1234567  0" },
