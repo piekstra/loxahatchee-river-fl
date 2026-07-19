@@ -113,11 +113,13 @@ as shown on your bill and in the portal URL (e.g. `1234567-0`).
 
 ### Paying
 
-Card capture runs through the district's payment processor (BluePay/FIS) behind a
-reCAPTCHA, so this tool does **not** handle card data. `lrfl pay` computes what
-you owe and hands you the district's own secure Pay Now page for the account
-(`--open` launches it). That keeps every payment on the official, PCI-compliant
-flow.
+The portal exposes no way to submit a card programmatically: the payment step is
+guarded by reCAPTCHA and card entry happens on the payment processor's own hosted
+page (BluePay/FIS). So `lrfl pay` automates everything up to that wall — it
+authenticates, computes exactly what you owe, and hands you the district's secure
+Pay Now page for the account (`--open` launches it); you enter the card and submit
+there. The card never passes through `lrfl`, because there's no supported path for
+it to — reCAPTCHA and a processor-hosted form are exactly the wall that stops it.
 
 ## JSON & scripting
 
@@ -137,11 +139,12 @@ go to **stderr**, so `| jq` is always safe.
 
 ## Privacy
 
-The account owner's **name and mailing address are withheld by default** —
-utility account numbers are sequential and easy to guess, so the tool won't print
-someone's identity just because you typed a number. Pass `--show-owner` to reveal
-them for an account you own. The district's own portal redacts owner names too;
-this tool honors that.
+The CLI shows whatever the district's portal returns for an account — owner name
+and mailing address included. It doesn't impose privacy the provider itself
+doesn't: the portal already answers anonymous account-number lookups, and blanks
+fields on its own (via a `RedactOwnerName` flag) when it wants to, so the tool
+just faithfully renders what it gets back. If you paste output somewhere public,
+sanitizing it is your call — the tool won't second-guess the provider for you.
 
 The only secret the tool stores is your portal **password**, in the OS keychain
 (the FIS session model exposes no long-lived token to keep instead) — never in a

@@ -30,7 +30,6 @@ pub struct Ctx {
     pub json: bool,
     pub verbose: bool,
     pub quiet: bool,
-    pub show_owner: bool,
     pub login: Option<String>,
 }
 
@@ -42,7 +41,6 @@ impl Ctx {
             json: cli.json,
             verbose: cli.verbose,
             quiet: cli.quiet,
-            show_owner: cli.show_owner,
             login: cli.email.clone(),
         })
     }

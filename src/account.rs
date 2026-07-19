@@ -8,8 +8,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
-/// The account owner / bill-to party. Enumerable account numbers mean this is
-/// treated as sensitive and redacted by the renderer unless explicitly shown.
+/// The account owner / bill-to party. Shown by default (the CLI mirrors what the
+/// portal returns); the renderer masks it only when `--redact-owner` is passed.
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Owner {
     pub name: String,

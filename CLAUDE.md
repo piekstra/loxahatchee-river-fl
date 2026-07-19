@@ -45,7 +45,7 @@ cargo fmt --all
 - `src/model.rs` — `District`, `Payment`, `AccountStatus` models. Tested.
 - `src/auth/` — `secrets.rs` (`Secret` redacts/zeroizes + keychain store; tested)
   and `session.rs` (login/logout; stores the password, mints tokens per call).
-- `src/formatter.rs` — human vs `--json` rendering, incl. owner redaction.
+- `src/formatter.rs` — human vs `--json` rendering (shows what the API returns).
 - `src/util.rs` — date math, prompts, browser opener, JWT-claims decode. Tested.
 - `src/version.rs` — `VERSION` + `build_info`. Tested.
 - `src/config.rs` — saved default-account + login-email files (not secrets).
@@ -66,8 +66,13 @@ cargo fmt --all
   Tests use synthetic account data (`1234567-8`). CI-style secret scanning runs
   via `.githooks/pre-commit` (gitleaks). The one real account number that appears
   is only ever typed at runtime by the user — never bake it in.
-- **Owner name/address is sensitive** (account numbers are enumerable). It's
-  redacted in output unless `--show-owner`. Keep that default.
+- **Mirror the provider — don't impose privacy it doesn't.** The CLI shows
+  whatever the portal returns for an account, owner name/address included. The
+  portal already serves anonymous account-number lookups and blanks fields itself
+  (`RedactOwnerName`) when it wants to, so the tool just renders what it gets.
+  There is no owner-redaction flag; sanitizing shared output is the user's call.
+  (The separate "no PII **in the repo**" rule is unaffected — tests/fixtures stay
+  synthetic; that rule is about committed code, never runtime output.)
 - The API's WAF blocks non-browser User-Agents — `client.rs` must send a
   browser-shaped UA. If reads start 403'ing, that's the first thing to check.
 - Responses **drift** and some errors arrive as a bare `(NNN) message` string;

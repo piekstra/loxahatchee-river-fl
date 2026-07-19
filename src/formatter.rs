@@ -1,14 +1,13 @@
 //! Human-readable and `--json` rendering for every command.
 //!
-//! Owner name/address is treated as sensitive (account numbers are enumerable),
-//! so it is masked in both human and JSON output unless `--show-owner` is set.
+//! The CLI faithfully shows whatever the district's portal returns for an
+//! account — owner name and mailing address included. It doesn't impose privacy
+//! the provider itself doesn't.
 
 use serde_json::{json, Value};
 
 use crate::account::Account;
 use crate::model::{status_word, AccountStatus, District, LinkedAccount, Payment};
-
-const HIDDEN: &str = "(hidden — pass --show-owner)";
 
 fn money(x: f64) -> String {
     format!("${x:.2}")
@@ -29,21 +28,9 @@ fn print_json(v: &Value) {
     );
 }
 
-/// Account as JSON, with owner fields masked unless `show_owner`.
-fn account_json(a: &Account, show_owner: bool) -> Value {
-    let mut v = serde_json::to_value(a).expect("serialize account");
-    if !show_owner {
-        if let Some(obj) = v.as_object_mut() {
-            obj.insert("bill_to_name".into(), json!("***redacted***"));
-            obj.insert("owner".into(), json!("***redacted***"));
-        }
-    }
-    v
-}
-
-pub fn print_account(a: &Account, show_owner: bool, json: bool) {
+pub fn print_account(a: &Account, json: bool) {
     if json {
-        print_json(&account_json(a, show_owner));
+        print_json(&serde_json::to_value(a).expect("serialize account"));
         return;
     }
     println!("Account {}", a.id);
@@ -51,15 +38,17 @@ pub fn print_account(a: &Account, show_owner: bool, json: bool) {
     if !a.service_location.is_empty() {
         println!("  Service loc:   {}", a.service_location);
     }
-    if show_owner {
-        println!("  Bill to:       {}", or_dash(&a.bill_to_name));
-        let addr = a.owner.address_line();
-        println!("  Owner:         {}", or_dash(&a.owner.name));
-        if !addr.is_empty() {
-            println!("  Mailing:       {addr}");
-        }
-    } else {
-        println!("  Owner:         {HIDDEN}");
+    // Property location is often identical to the service address; only show it
+    // when it differs, to avoid a redundant line.
+    let prop = a.property_location.trim();
+    if !prop.is_empty() && prop != a.service_location.trim() {
+        println!("  Property loc:  {prop}");
+    }
+    println!("  Bill to:       {}", or_dash(&a.bill_to_name));
+    println!("  Owner:         {}", or_dash(&a.owner.name));
+    let addr = a.owner.address_line();
+    if !addr.is_empty() {
+        println!("  Mailing:       {addr}");
     }
     println!();
     println!("  Services:");
@@ -78,7 +67,6 @@ pub fn print_summary(
     a: &Account,
     status: Option<&AccountStatus>,
     last_payment: Option<&Payment>,
-    show_owner: bool,
     json: bool,
 ) {
     if json {
@@ -101,15 +89,13 @@ pub fn print_summary(
             "services": services,
             "last_payment": last_payment.map(|p| serde_json::to_value(p).unwrap()),
         });
-        if show_owner {
-            out["owner"] = serde_json::to_value(&a.owner).unwrap_or(Value::Null);
-        }
+        out["owner"] = serde_json::to_value(&a.owner).unwrap_or(Value::Null);
         print_json(&out);
         return;
     }
 
     println!("Account {}", a.id);
-    if show_owner && !a.owner.name.is_empty() {
+    if !a.owner.name.is_empty() {
         println!("  {}", a.owner.name);
     }
     println!("  Balance due:  {}", money(a.balance_due));
