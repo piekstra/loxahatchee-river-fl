@@ -36,14 +36,18 @@ cargo fmt --all
 - `src/main.rs` — thin binary: parse args, build `Ctx`, dispatch to `commands`.
 - `src/cli.rs` — clap `Cli` / `Command` definitions.
 - `src/commands/` — one thin module per domain (`account`, `status`, `history`,
-  `pay`, `district`, `config`, `auth`, `accounts`, `self_update`, `completions`);
-  `mod.rs` holds `Ctx` and the shared `resolve_account`.
+  `pay`, `bill`, `search`, `district`, `config`, `auth`, `accounts`,
+  `self_update`, `completions`); `mod.rs` holds `Ctx` and the shared
+  `resolve_account`.
 - `src/client.rs` — the `Wipp` HTTP client: tenant header, browser UA, the async
   submit-then-poll `/requests/{id}` pattern, and the FIS login (two hops on a
   cookie session → `id_token`).
 - `src/acct.rs` — account-id parsing (`NNNNNNN-N` ↔ padded API key). Tested.
 - `src/account.rs` — normalized `Account`/`ServiceCharge` + amount-due math. Tested.
-- `src/model.rs` — `District`, `Payment`, `AccountStatus` models. Tested.
+- `src/bill.rs` — parses the hosted PDF bill's text (`[KEY=VALUE]` block + labeled
+  lines) into a `Bill` (owner, mailing address, AutoPay). Tested. Uses
+  `pdf-extract` to read the PDF; the bill carries owner data the JSON API redacts.
+- `src/model.rs` — `District`, `Payment`, `AccountStatus`, `AccountMatch` models. Tested.
 - `src/auth/` — `secrets.rs` (`Secret` redacts/zeroizes + keychain store; tested)
   and `session.rs` (login/logout; stores the password, mints tokens per call).
 - `src/formatter.rs` — human vs `--json` rendering (shows what the API returns).

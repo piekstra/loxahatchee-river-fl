@@ -7,6 +7,7 @@
 use serde_json::{json, Value};
 
 use crate::account::Account;
+use crate::bill::Bill;
 use crate::model::{status_word, AccountMatch, AccountStatus, District, LinkedAccount, Payment};
 
 fn money(x: f64) -> String {
@@ -101,6 +102,53 @@ pub fn print_account(a: &Account, json: bool) {
             println!("      early-pay discount {}{by}", money(c.discount_amount));
         }
     }
+}
+
+/// A parsed bill: bill-to owner, mailing/service address, AutoPay, totals.
+pub fn print_bill(b: &Bill, json: bool) {
+    if json {
+        print_json(&serde_json::to_value(b).expect("serialize bill"));
+        return;
+    }
+    println!("Bill for account {}", or_dash(&b.account_id));
+    if !b.customer.is_empty() {
+        println!("  Bill to:       {}", b.customer);
+    }
+    if !b.mailing_address.is_empty() {
+        println!("  Mailing:       {}", b.mailing_address);
+    }
+    if !b.service_address.is_empty() {
+        println!("  Service addr:  {}", b.service_address);
+    }
+    if !b.statement_date.is_empty() {
+        println!("  Statement:     {}", b.statement_date);
+    }
+    if !b.service_period.is_empty() {
+        println!("  Period:        {}", b.service_period);
+    }
+    if let Some(t) = b.total_due {
+        let due = if b.due_date.is_empty() {
+            String::new()
+        } else {
+            format!("   due {}", b.due_date)
+        };
+        println!("  Total due:     {}{due}", money(t));
+    }
+    if !b.last_payment.is_empty() {
+        println!("  Last payment:  {}", b.last_payment);
+    }
+    println!(
+        "  AutoPay:       {}",
+        if b.on_autopay() {
+            b.autopay.as_str()
+        } else {
+            "not enrolled"
+        }
+    );
+    println!(
+        "  Paperless:     {}",
+        if b.paperless { "yes" } else { "no" }
+    );
 }
 
 /// Address-search results: matched accounts with their location and owner.
