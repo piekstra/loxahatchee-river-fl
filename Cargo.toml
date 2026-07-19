@@ -1,6 +1,6 @@
 [package]
 name = "loxahatchee-river-fl"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.74"
 description = "View account, billing, charges, and payment history for Loxahatchee River District utilities from the command line — agent-friendly, JSON-capable."
