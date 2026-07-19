@@ -48,7 +48,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 |---------|---------------|
 | `lrfl summary [ACCT]` | One-shot overview: balance, per-service status, last payment |
 | `lrfl balance [ACCT]` | Amount due, per service and total |
-| `lrfl account [ACCT]` | Full record: balance, service location, owner (hidden by default) |
+| `lrfl account [ACCT]` | Full record: balance, service location, owner name/address |
 | `lrfl charges [ACCT]` | Principal/interest, due dates, billed-YTD, meter readings & usage |
 | `lrfl status [ACCT]` | Each service's active/inactive status |
 | `lrfl history [ACCT]` | Posted payments (`--since YYYY-MM-DD` or `--years N`) |
@@ -159,7 +159,6 @@ account number and login email — lives in plain files under
 | `--json` | Machine-readable JSON on stdout |
 | `-v, --verbose` | Extra diagnostics on stderr |
 | `-q, --quiet` | Suppress non-error stderr |
-| `--show-owner` | Reveal owner name/address (hidden by default) |
 | `--no-color` | Disable ANSI color (reserved) |
 | `--wipp-id <ID>` | WIPP tenant id (default `LOXA`; or `$LRFL_WIPP_ID`) |
 | `--email <EMAIL>` | Login email for authenticated commands (or `$LRFL_EMAIL`) |

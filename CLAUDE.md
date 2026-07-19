@@ -10,8 +10,9 @@ Guest commands are anonymous **guest-view** lookups by account number — no
 credentials. Authenticated commands (`login`/`logout`/`whoami`, `accounts`) use
 the district's **SunGard/FIS** login (a two-hop cookie→JWT flow); the password is
 stored in the OS keychain and a fresh token is minted per command. `lrfl pay`
-computes what's owed and hands off to the portal's PCI-compliant Pay Now page
-rather than touching card data. `lrfl self-update` pulls the latest GitHub release.
+computes what's owed and hands off to the portal's Pay Now page — reCAPTCHA and a
+processor-hosted card form leave no programmatic path — rather than touching card
+data. `lrfl self-update` pulls the latest GitHub release.
 
 Structured as a **library + thin binary** (like the pup CLI): logic lives in the
 `loxahatchee_river_fl` lib (`src/lib.rs`); `main.rs` only parses args and

@@ -8,8 +8,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
-/// The account owner / bill-to party. Shown by default (the CLI mirrors what the
-/// portal returns); the renderer masks it only when `--redact-owner` is passed.
+/// The account owner / bill-to party. Always rendered — the CLI shows whatever
+/// the portal returns for the account (there is no redaction flag).
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Owner {
     pub name: String,
