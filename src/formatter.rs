@@ -1,14 +1,13 @@
 //! Human-readable and `--json` rendering for every command.
 //!
-//! Owner name/address is treated as sensitive (account numbers are enumerable),
-//! so it is masked in both human and JSON output unless `--show-owner` is set.
+//! The CLI faithfully shows whatever the district's portal returns for an
+//! account — owner name and mailing address included. It doesn't impose privacy
+//! the provider itself doesn't.
 
 use serde_json::{json, Value};
 
 use crate::account::Account;
 use crate::model::{status_word, AccountStatus, District, LinkedAccount, Payment};
-
-const HIDDEN: &str = "(hidden — pass --show-owner)";
 
 fn money(x: f64) -> String {
     format!("${x:.2}")
@@ -29,21 +28,9 @@ fn print_json(v: &Value) {
     );
 }
 
-/// Account as JSON, with owner fields masked unless `show_owner`.
-fn account_json(a: &Account, show_owner: bool) -> Value {
-    let mut v = serde_json::to_value(a).expect("serialize account");
-    if !show_owner {
-        if let Some(obj) = v.as_object_mut() {
-            obj.insert("bill_to_name".into(), json!("***redacted***"));
-            obj.insert("owner".into(), json!("***redacted***"));
-        }
-    }
-    v
-}
-
-pub fn print_account(a: &Account, show_owner: bool, json: bool) {
+pub fn print_account(a: &Account, json: bool) {
     if json {
-        print_json(&account_json(a, show_owner));
+        print_json(&serde_json::to_value(a).expect("serialize account"));
         return;
     }
     println!("Account {}", a.id);
@@ -51,25 +38,68 @@ pub fn print_account(a: &Account, show_owner: bool, json: bool) {
     if !a.service_location.is_empty() {
         println!("  Service loc:   {}", a.service_location);
     }
-    if show_owner {
-        println!("  Bill to:       {}", or_dash(&a.bill_to_name));
-        let addr = a.owner.address_line();
-        println!("  Owner:         {}", or_dash(&a.owner.name));
-        if !addr.is_empty() {
-            println!("  Mailing:       {addr}");
-        }
-    } else {
-        println!("  Owner:         {HIDDEN}");
+    // Property location is often identical to the service address; only show it
+    // when it differs, to avoid a redundant line.
+    let prop = a.property_location.trim();
+    if !prop.is_empty() && prop != a.service_location.trim() {
+        println!("  Property loc:  {prop}");
+    }
+    println!("  Bill to:       {}", or_dash(&a.bill_to_name));
+    println!("  Owner:         {}", or_dash(&a.owner.name));
+    let addr = a.owner.address_line();
+    if !addr.is_empty() {
+        println!("  Mailing:       {addr}");
+    }
+    if !a.interest_date.is_empty() {
+        println!("  Interest thru: {}", a.interest_date);
     }
     println!();
     println!("  Services:");
     for c in &a.charges {
+        let due = if c.current_due_date.trim().is_empty() {
+            String::new()
+        } else {
+            format!("   due {}", c.current_due_date)
+        };
+        println!("    {} — {}{}", c.service, money(c.amount_due), due);
         println!(
-            "    {:<10} {:>10}   due {}",
-            c.service,
-            money(c.amount_due),
-            or_dash(&c.current_due_date)
+            "      principal {}   interest {}",
+            money(c.total_principal),
+            money(c.total_interest)
         );
+        if c.future_principal.abs() > f64::EPSILON {
+            println!("      not-yet-due principal {}", money(c.future_principal));
+        }
+        let mut ytd = format!("      billed YTD {}", money(c.billed_ytd));
+        if !c.last_paid_date.trim().is_empty() {
+            ytd.push_str(&format!("   last paid {}", c.last_paid_date));
+        }
+        println!("{ytd}");
+        if !c.current_period_start.is_empty() || !c.current_period_end.is_empty() {
+            println!(
+                "      period {} – {}",
+                or_dash(&c.current_period_start),
+                or_dash(&c.current_period_end)
+            );
+        }
+        if let Some(r) = c.current_reading {
+            let mut m = format!("      reading {r}");
+            if let Some(u) = c.current_usage {
+                m.push_str(&format!("   usage {u}"));
+            }
+            if !c.current_reading_date.is_empty() {
+                m.push_str(&format!("   ({})", c.current_reading_date));
+            }
+            println!("{m}");
+        }
+        if c.discount_amount.abs() > f64::EPSILON {
+            let by = if c.discount_date.is_empty() {
+                String::new()
+            } else {
+                format!(" by {}", c.discount_date)
+            };
+            println!("      early-pay discount {}{by}", money(c.discount_amount));
+        }
     }
 }
 
@@ -78,7 +108,6 @@ pub fn print_summary(
     a: &Account,
     status: Option<&AccountStatus>,
     last_payment: Option<&Payment>,
-    show_owner: bool,
     json: bool,
 ) {
     if json {
@@ -101,15 +130,13 @@ pub fn print_summary(
             "services": services,
             "last_payment": last_payment.map(|p| serde_json::to_value(p).unwrap()),
         });
-        if show_owner {
-            out["owner"] = serde_json::to_value(&a.owner).unwrap_or(Value::Null);
-        }
+        out["owner"] = serde_json::to_value(&a.owner).unwrap_or(Value::Null);
         print_json(&out);
         return;
     }
 
     println!("Account {}", a.id);
-    if show_owner && !a.owner.name.is_empty() {
+    if !a.owner.name.is_empty() {
         println!("  {}", a.owner.name);
     }
     println!("  Balance due:  {}", money(a.balance_due));

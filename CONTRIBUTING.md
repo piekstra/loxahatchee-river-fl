@@ -28,7 +28,9 @@ and a missing field shouldn't crash a lookup.
 - **No secrets or PII** in code, tests, fixtures, or commits — real account
   numbers, names, addresses, or balances included. This tool needs no
   credentials; keep it that way. `gitleaks` runs in the pre-commit hook.
-- Owner name/address stays **redacted by default** (`--show-owner` to reveal).
+- The CLI shows whatever the portal returns (owner name/address included); it
+  doesn't add redaction the provider itself doesn't. (The repo-hygiene rule above
+  is separate — it's about committed code, never runtime output.)
 - Card payments go through the district's official gateway — don't add code that
   captures or posts card data.
 - Keep it personal-scale and polite to the portal. No bulk scraping or hammering.

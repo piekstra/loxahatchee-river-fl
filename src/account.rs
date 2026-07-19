@@ -8,8 +8,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
-/// The account owner / bill-to party. Enumerable account numbers mean this is
-/// treated as sensitive and redacted by the renderer unless explicitly shown.
+/// The account owner / bill-to party. Always rendered — the CLI shows whatever
+/// the portal returns for the account (there is no redaction flag).
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Owner {
     pub name: String,
@@ -58,6 +58,10 @@ pub struct Account {
     pub owner: Owner,
     pub service_location: String,
     pub property_location: String,
+    /// Date through which interest is calculated (`propertyInfo.interestDate`).
+    /// The mainframe's `1000-01-01` "never" sentinel is normalized to blank.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub interest_date: String,
     pub charges: Vec<ServiceCharge>,
     /// Total amount due across all services.
     pub balance_due: f64,
@@ -83,12 +87,21 @@ impl Account {
         charges.sort_by(|a, b| a.service.cmp(&b.service));
         let balance_due = round2(charges.iter().map(|c| c.amount_due).sum());
 
+        // Interest-through date lives on the nested propertyInfo block; drop the
+        // mainframe "never" sentinel.
+        let interest_date = v
+            .get("propertyInfo")
+            .map(|p| string_at(p, "interestDate"))
+            .filter(|d| d != "1000-01-01")
+            .unwrap_or_default();
+
         Account {
             id: display_id.to_string(),
             bill_to_name: string_at(v, "billToName"),
             owner,
             service_location: string_at(v, "serviceLoc"),
             property_location: string_at(v, "propertyLoc"),
+            interest_date,
             charges,
             balance_due,
         }
@@ -190,6 +203,7 @@ mod tests {
             },
             "serviceLoc": "123 MAIN ST",
             "propertyLoc": "123 MAIN ST",
+            "propertyInfo": { "interestDate": "2026-07-20" },
             "chargeTypes": {
                 "Sewer       ": {
                     "totPrnBal": 79.09,
@@ -252,5 +266,19 @@ mod tests {
         let acct = Account::from_node("1234567-8", &sample());
         assert_eq!(acct.owner.street2, "");
         assert_eq!(acct.owner.address_line(), "123 MAIN ST, ANYTOWN FL, 33400");
+    }
+
+    #[test]
+    fn interest_date_read_from_property_info() {
+        let acct = Account::from_node("1234567-8", &sample());
+        assert_eq!(acct.interest_date, "2026-07-20");
+    }
+
+    #[test]
+    fn interest_date_never_sentinel_is_blank() {
+        let mut v = sample();
+        v["propertyInfo"]["interestDate"] = json!("1000-01-01");
+        let acct = Account::from_node("1234567-8", &v);
+        assert_eq!(acct.interest_date, "");
     }
 }
