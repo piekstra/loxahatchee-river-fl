@@ -28,6 +28,7 @@ fn run(cli: Cli) -> Result<(), AppError> {
         } => commands::history::run(&ctx, account, since.as_deref(), *years, *limit),
         Command::Pay { account, open } => commands::pay::pay(&ctx, account, *open),
         Command::Open(a) => commands::pay::open(&ctx, a),
+        Command::Search { query, limit } => commands::search::run(&ctx, query, *limit),
         Command::District => commands::district::run(&ctx),
         Command::Config { action } => commands::config::run(&ctx, action),
         Command::Auth(cmd) => commands::auth::run(&ctx, cmd),

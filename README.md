@@ -37,6 +37,8 @@ lrfl charges                 # per-service detail, meter readings, usage
 lrfl history --years 2       # recent payments
 lrfl status                  # which services are active
 lrfl pay --open              # compute the amount and open the Pay Now page
+
+lrfl search "CHURCH"         # find accounts by address (no account number needed)
 ```
 
 You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
@@ -54,6 +56,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl history [ACCT]` | Posted payments (`--since YYYY-MM-DD` or `--years N`) |
 | `lrfl pay [ACCT]` | Compute the amount due and hand off to the portal's Pay Now page (`--open`) |
 | `lrfl open [ACCT]` | Open the account's portal page in your browser |
+| `lrfl search <ADDR>` | Find accounts by street/property address (`--limit N`) — no login |
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
 | `lrfl login` / `logout` / `whoami` | Manage a logged-in session (credential in the OS keychain) |
