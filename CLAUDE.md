@@ -72,12 +72,16 @@ cargo fmt --all
   via `.githooks/pre-commit` (gitleaks). The one real account number that appears
   is only ever typed at runtime by the user — never bake it in.
 - **Mirror the provider — don't impose privacy it doesn't.** The CLI shows
-  whatever the portal returns for an account, owner name/address included. The
-  portal already serves anonymous account-number lookups and blanks fields itself
-  (`RedactOwnerName`) when it wants to, so the tool just renders what it gets.
-  There is no owner-redaction flag; sanitizing shared output is the user's call.
-  (The separate "no PII **in the repo**" rule is unaffected — tests/fixtures stay
-  synthetic; that rule is about committed code, never runtime output.)
+  whatever the portal makes available for an account, owner name/address included.
+  The portal serves anonymous account-number lookups and address searches, no
+  login. The JSON API's `RedactOwnerName` flag blanks the owner name, but treat it
+  as cosmetic, **not** a privacy boundary: the same account's official PDF bill —
+  fetched over the same anonymous channel — still carries owner + mailing address,
+  so `bill` and `search --full` surface them. The tool renders what the provider
+  exposes; there is no owner-redaction flag, and sanitizing shared output is the
+  user's call. (The separate "no PII **in the repo**" rule is unaffected —
+  tests/fixtures stay synthetic; that rule is about committed code, never runtime
+  output.)
 - The API's WAF blocks non-browser User-Agents — `client.rs` must send a
   browser-shaped UA. If reads start 403'ing, that's the first thing to check.
 - Responses **drift** and some errors arrive as a bare `(NNN) message` string;

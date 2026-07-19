@@ -3,6 +3,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::bill::Bill;
+
 /// Tenant/district configuration distilled from `/metadata` + `/capabilities`.
 #[derive(Debug, Clone, Serialize)]
 pub struct District {
@@ -169,9 +171,13 @@ pub struct AccountMatch {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub service: String,
     /// Amount due, filled in only when the search was run with `--balances`
-    /// (which fetches each match's full account).
+    /// (which fetches each match's full account) or `--full`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance_due: Option<f64>,
+    /// Full bill detail (owner, mailing address, AutoPay, period …) — filled in
+    /// only with `--full`, which parses each match's official PDF bill.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bill: Option<Bill>,
 }
 
 impl AccountMatch {
@@ -184,6 +190,7 @@ impl AccountMatch {
             bill_to_name: string_at(v, "billToName"),
             service: string_at(v, "chargeType"),
             balance_due: None,
+            bill: None,
         }
     }
 
@@ -291,16 +298,16 @@ mod tests {
     fn account_match_parses_search_page() {
         let body = json!({
             "content": [
-                { "accountId": "  226400  0", "propertyLoc": "348 CHURCH RD",
+                { "accountId": "  226400  0", "propertyLoc": "348 MAPLE RD",
                   "ownerName": " ", "billToName": " ", "chargeType": "Sewer       " },
-                { "accountId": "  226500  0", "propertyLoc": "352 CHURCH RD" }
+                { "accountId": "  226500  0", "propertyLoc": "352 MAPLE RD" }
             ],
             "totalElements": 2
         });
         let matches = AccountMatch::list_from(&body);
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].account_id, "226400-0");
-        assert_eq!(matches[0].property_location, "348 CHURCH RD");
+        assert_eq!(matches[0].property_location, "348 MAPLE RD");
         assert_eq!(matches[0].service, "Sewer");
         assert_eq!(matches[0].owner_name, ""); // blank sentinel trimmed
         assert_eq!(matches[1].account_id, "226500-0");

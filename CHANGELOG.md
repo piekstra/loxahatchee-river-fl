@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.5.0 — 2026-07-19
+
+### Added
+- **`lrfl search --full`** — fold each match's full bill detail (owner, mailing
+  address, AutoPay, service period, and balance) straight into search results,
+  parsed from the same official PDF `lrfl bill` uses. Because it fetches a bill
+  per match, `--full` is capped to a small result set (narrow the query or lower
+  `--limit`); it implies `--balances`. Human output nests the detail under each
+  match; `--json` nests a `bill` object.
+- `search` help now points at the `search → bill`/`account`/`balance` workflow so
+  it's discoverable from `--help`, not just inferable.
+
+### Changed
+- Docs no longer lean on `RedactOwnerName` as a privacy rationale — it's cosmetic
+  (blanks the owner in the JSON API/portal UI only), since the same account's
+  anonymous PDF bill still carries owner + mailing address. Clarified across
+  README, `docs/wipp-api.md`, and `CLAUDE.md`.
+
+### Fixed
+- Replaced non-synthetic sample data in a `bill` unit test and the `search`
+  example with synthetic placeholders (repo-hygiene: keep real account/address
+  data out of the source tree).
+
 ## v0.4.0 — 2026-07-19
 
 ### Added

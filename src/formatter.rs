@@ -172,7 +172,7 @@ pub fn print_search(query: &str, matches: &[AccountMatch], truncated: bool, json
         if matches.len() == 1 { "" } else { "es" }
     );
     for m in matches {
-        // Balance column only appears with --extended (otherwise `None`).
+        // Balance column only appears with --balances/--full (otherwise `None`).
         let bal = match m.balance_due {
             Some(b) => format!("{:>9}  ", money(b)),
             None => String::new(),
@@ -187,6 +187,26 @@ pub fn print_search(query: &str, matches: &[AccountMatch], truncated: bool, json
             m.account_id,
             or_dash(&m.property_location)
         );
+        // With --full, fold in the bill-only detail the search API omits.
+        if let Some(b) = &m.bill {
+            if !b.customer.is_empty() {
+                println!("      bill to:  {}", b.customer);
+            }
+            if !b.mailing_address.is_empty() {
+                println!("      mailing:  {}", b.mailing_address);
+            }
+            if !b.service_period.is_empty() {
+                println!("      period:   {}", b.service_period);
+            }
+            println!(
+                "      autopay:  {}",
+                if b.on_autopay() {
+                    b.autopay.as_str()
+                } else {
+                    "not enrolled"
+                }
+            );
+        }
     }
     if truncated {
         println!("  … page full — raise --limit to see more.");

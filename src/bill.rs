@@ -155,17 +155,17 @@ ANYTOWN, FL 33400-1712]
     #[test]
     fn occupant_billed_has_no_owner_and_no_autopay() {
         let text = "\
-[Sys_Acct_ID=4924000-0]
+[Sys_Acct_ID=7654321-0]
 [Sys_Balance=79.09]
 [Sys_FullAddress=OCCUPANT
-6810 CHURCH ST]
-[CSERVADDR=6810 CHURCH ST]
+500 SAMPLE ST]
+[CSERVADDR=500 SAMPLE ST]
 [PAPERLESS_FLAG=N]
 [AUTOPAY_FLAG=]
 ";
         let b = Bill::parse(text);
         assert_eq!(b.customer, "OCCUPANT");
-        assert_eq!(b.mailing_address, "6810 CHURCH ST");
+        assert_eq!(b.mailing_address, "500 SAMPLE ST");
         assert_eq!(b.total_due, Some(79.09));
         assert!(!b.on_autopay());
         assert!(!b.paperless);
