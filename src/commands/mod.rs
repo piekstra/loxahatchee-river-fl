@@ -11,6 +11,7 @@ pub mod config;
 pub mod district;
 pub mod history;
 pub mod pay;
+pub mod search;
 pub mod self_update;
 pub mod status;
 pub mod summary;

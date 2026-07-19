@@ -7,7 +7,7 @@
 use serde_json::{json, Value};
 
 use crate::account::Account;
-use crate::model::{status_word, AccountStatus, District, LinkedAccount, Payment};
+use crate::model::{status_word, AccountMatch, AccountStatus, District, LinkedAccount, Payment};
 
 fn money(x: f64) -> String {
     format!("${x:.2}")
@@ -100,6 +100,43 @@ pub fn print_account(a: &Account, json: bool) {
             };
             println!("      early-pay discount {}{by}", money(c.discount_amount));
         }
+    }
+}
+
+/// Address-search results: matched accounts with their location and owner.
+pub fn print_search(query: &str, matches: &[AccountMatch], truncated: bool, json: bool) {
+    if json {
+        print_json(&json!({
+            "query": query,
+            "count": matches.len(),
+            "truncated": truncated,
+            "matches": matches,
+        }));
+        return;
+    }
+    if matches.is_empty() {
+        println!("No accounts match {query:?}.");
+        return;
+    }
+    println!(
+        "{} match{} for {query:?}:",
+        matches.len(),
+        if matches.len() == 1 { "" } else { "es" }
+    );
+    for m in matches {
+        let who = if m.owner_name.is_empty() {
+            String::new()
+        } else {
+            format!("   {}", m.owner_name)
+        };
+        println!(
+            "  {:<11} {}{who}",
+            m.account_id,
+            or_dash(&m.property_location)
+        );
+    }
+    if truncated {
+        println!("  … page full — raise --limit to see more.");
     }
 }
 
