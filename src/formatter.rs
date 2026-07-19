@@ -50,15 +50,56 @@ pub fn print_account(a: &Account, json: bool) {
     if !addr.is_empty() {
         println!("  Mailing:       {addr}");
     }
+    if !a.interest_date.is_empty() {
+        println!("  Interest thru: {}", a.interest_date);
+    }
     println!();
     println!("  Services:");
     for c in &a.charges {
+        let due = if c.current_due_date.trim().is_empty() {
+            String::new()
+        } else {
+            format!("   due {}", c.current_due_date)
+        };
+        println!("    {} — {}{}", c.service, money(c.amount_due), due);
         println!(
-            "    {:<10} {:>10}   due {}",
-            c.service,
-            money(c.amount_due),
-            or_dash(&c.current_due_date)
+            "      principal {}   interest {}",
+            money(c.total_principal),
+            money(c.total_interest)
         );
+        if c.future_principal.abs() > f64::EPSILON {
+            println!("      not-yet-due principal {}", money(c.future_principal));
+        }
+        let mut ytd = format!("      billed YTD {}", money(c.billed_ytd));
+        if !c.last_paid_date.trim().is_empty() {
+            ytd.push_str(&format!("   last paid {}", c.last_paid_date));
+        }
+        println!("{ytd}");
+        if !c.current_period_start.is_empty() || !c.current_period_end.is_empty() {
+            println!(
+                "      period {} – {}",
+                or_dash(&c.current_period_start),
+                or_dash(&c.current_period_end)
+            );
+        }
+        if let Some(r) = c.current_reading {
+            let mut m = format!("      reading {r}");
+            if let Some(u) = c.current_usage {
+                m.push_str(&format!("   usage {u}"));
+            }
+            if !c.current_reading_date.is_empty() {
+                m.push_str(&format!("   ({})", c.current_reading_date));
+            }
+            println!("{m}");
+        }
+        if c.discount_amount.abs() > f64::EPSILON {
+            let by = if c.discount_date.is_empty() {
+                String::new()
+            } else {
+                format!(" by {}", c.discount_date)
+            };
+            println!("      early-pay discount {}{by}", money(c.discount_amount));
+        }
     }
 }
 
