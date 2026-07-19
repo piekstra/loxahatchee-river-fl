@@ -60,7 +60,7 @@ These power `lrfl`'s read commands. All take `X-Wipp-Id` + a browser UA.
 ```
 id, billToName, serviceLoc, propertyLoc,
 utilityOwnerInfo{ name, street1, street2, cityState, zip },
-propertyInfo{ … assessment/owner fields … },
+propertyInfo{ interestDate, …assessment/owner fields… },  // interestDate powers "Interest thru"
 chargeTypes: { "<ServiceName padded>": {
    totPrnBal, totIntDue, futurePrnBal, otrDelqPrnBal, otrDelqIntDue,
    billedYtd, currDueDate, lastDatePaid,
@@ -78,6 +78,26 @@ balance_due         = Σ amount_due(service)
 (The portal also has a per-service early-pay discount term, `currDiscAmt`, which
 is surfaced in `charges` but not added into the account balance — the SPA's
 account-level `calcUtilityBalance` predicate doesn't fire on the raw field.)
+
+### Address search  → powers `search`
+`GET /wippUtil/search?propertyLoc=<query>&size=<n>` → a Spring page of accounts
+matching a **street/property location**. The district matches **server-side**
+(case-insensitive **substring** on the property location) — no geocoding or third
+party. Anonymous (no login).
+```
+{ content: [ { wippId, accountId (space-padded), chargeType,
+               propertyLoc, ownerName, billToName, propLocStDirNum, … } ],
+  totalElements, totalPages, size, number, … }
+```
+- The recognized filter key is **`propertyLoc`**; unknown keys (`streetName`,
+  `address`, `accountNumber`, …) are silently ignored and the endpoint returns an
+  unfiltered first page — so verify a query actually filters.
+- **Gotcha:** `totalElements` is **page-capped** — it equals the number of rows
+  returned, not the true match count. So there's no reliable total; a *full* page
+  just means "there may be more" (raise `size`). `lrfl search` surfaces this as a
+  `truncated` flag rather than a bogus "of N".
+- The search URL segment is `wippUtil` for utility; tax/property search uses a
+  different segment (`WippPropInfo`) that LOXA (sewer-only) doesn't expose.
 
 ### Service status  → powers `status`  (async)
 `GET /wippUtil/{id}/determineAccountStatus` → `202 {requestId}` → poll →
