@@ -98,6 +98,10 @@ party. Anonymous (no login).
   `truncated` flag rather than a bogus "of N".
 - The search URL segment is `wippUtil` for utility; tax/property search uses a
   different segment (`WippPropInfo`) that LOXA (sewer-only) doesn't expose.
+- The result rows carry `ownerName`/`billToName` and a nested `wippPropInfo`
+  (assessment/owner), but **no balance or charges** — and for LOXA those owner
+  and assessment fields come back blank. `lrfl search --extended` therefore fans
+  out one `/wippUtil/{id}` lookup per match to attach each account's balance.
 
 ### Service status  → powers `status`  (async)
 `GET /wippUtil/{id}/determineAccountStatus` → `202 {requestId}` → poll →
