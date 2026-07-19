@@ -103,6 +103,20 @@ pub enum Command {
     /// Open the account's page in the portal in your default browser.
     Open(AccountArg),
 
+    /// Show the current bill parsed from the official PDF: bill-to owner, mailing
+    /// address, AutoPay status, service period, last payment, total due — data the
+    /// API redacts/omits. `--open` opens the PDF; `--save PATH` downloads it.
+    Bill {
+        #[command(flatten)]
+        account: AccountArg,
+        /// Open the PDF bill in your browser instead of parsing it.
+        #[arg(long)]
+        open: bool,
+        /// Download the PDF bill to this file instead of parsing it.
+        #[arg(long, value_name = "PATH")]
+        save: Option<String>,
+    },
+
     /// Find accounts by street/property address (e.g. `lrfl search "MAPLE"`).
     /// The district matches server-side (case-insensitive substring); no login.
     Search {

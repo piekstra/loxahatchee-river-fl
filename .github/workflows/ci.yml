@@ -48,7 +48,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Transitive-only, not reachable via `lrfl self-update` (GitHub/JSON
           # backend). See deny.toml for the rationale.
-          ignore: RUSTSEC-2026-0194,RUSTSEC-2026-0195,RUSTSEC-2025-0119
+          ignore: RUSTSEC-2026-0194,RUSTSEC-2026-0195,RUSTSEC-2025-0119,RUSTSEC-2026-0192
       - name: cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:

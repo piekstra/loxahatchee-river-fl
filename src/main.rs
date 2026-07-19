@@ -28,6 +28,11 @@ fn run(cli: Cli) -> Result<(), AppError> {
         } => commands::history::run(&ctx, account, since.as_deref(), *years, *limit),
         Command::Pay { account, open } => commands::pay::pay(&ctx, account, *open),
         Command::Open(a) => commands::pay::open(&ctx, a),
+        Command::Bill {
+            account,
+            open,
+            save,
+        } => commands::bill::run(&ctx, account, *open, save.as_deref()),
         Command::Search {
             query,
             limit,

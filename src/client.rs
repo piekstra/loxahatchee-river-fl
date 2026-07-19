@@ -169,6 +169,35 @@ impl Wipp {
         }
     }
 
+    /// Resolve the hosted PDF bill URL for an account's current bill.
+    /// `GET /wippUtil/{id}/retrieveThirdPartyBillUrl?dueDate=YYYY-MM-DD` → `{ url }`
+    /// (an onlinebiller.com document link). `due_date` must be the bill's current
+    /// due date, taken from the account's charges.
+    pub fn bill_url(&self, id: &AccountId, due_date: &str) -> Result<String, AppError> {
+        let (s, b) = self.get(
+            &format!("/wippUtil/{}/retrieveThirdPartyBillUrl", id.encoded()),
+            &[("dueDate", due_date)],
+        )?;
+        let body = self.require_ok(s, b, "bill url")?;
+        body.get("url")
+            .and_then(Value::as_str)
+            .filter(|u| !u.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| AppError::NotFound(format!("no bill available for {}", id.dashed())))
+    }
+
+    /// Download raw bytes from a URL (the hosted PDF bill). Uses the browser UA.
+    pub fn fetch_bytes(&self, url: &str) -> Result<Vec<u8>, AppError> {
+        let resp = self.client.get(url).send()?;
+        let status = resp.status().as_u16();
+        if !(200..300).contains(&status) {
+            return Err(AppError::Upstream(format!(
+                "HTTP {status} fetching the bill PDF"
+            )));
+        }
+        Ok(resp.bytes()?.to_vec())
+    }
+
     /// Per-service active/inactive status. This is an **async** mainframe call:
     /// submit, then poll. `GET /wippUtil/{id}/determineAccountStatus` → poll.
     pub fn account_status(&self, id: &AccountId) -> Result<Value, AppError> {

@@ -8,6 +8,7 @@ ignore = [
     "RUSTSEC-2026-0194", # quick-xml: quadratic attribute-check DoS on untrusted XML — self_update's GitHub backend is JSON-only.
     "RUSTSEC-2026-0195", # quick-xml: unbounded namespace alloc in NsReader — same; no untrusted XML parsed.
     "RUSTSEC-2025-0119", # number_prefix: unmaintained; pulled by indicatif's progress bar.
+    "RUSTSEC-2026-0192", # ttf-parser: unmaintained (informational, not a vuln); pulled transitively by pdf-extract's font handling for `bill`.
 ]
 
 [licenses]

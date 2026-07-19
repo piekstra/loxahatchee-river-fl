@@ -114,6 +114,18 @@ codes (`A` active, `N` none).
 postTime, paymentDate, userPart3/4/5 }]`. The entity segment is the literal
 `wippUtil` (not `U`/`UTILITY` — those 400 with "No enum constant").
 
+### Bill PDF  → powers `bill`
+`GET /wippUtil/{id}/retrieveThirdPartyBillUrl?dueDate=YYYY-MM-DD` →
+`{ url }` — a hosted PDF at `docs.onlinebiller.com/documents.php?client=loxahtchee&action=<token>`.
+Anonymous; `dueDate` must be the bill's current due date (take it from the
+account's `currDueDate`). The PDF's **text layer** carries data the redacted API
+does not: a `[KEY=VALUE]` block (`Sys_Acct_ID`, `Sys_Balance`, multi-line
+`Sys_FullAddress` = bill-to name + mailing address, `CSERVADDR`, `CDATE`,
+`CDUEDATE`, `AUTOPAY_FLAG`, `PAPERLESS_FLAG`, `OCRLINE`) plus labeled lines
+(`Service Period:`, `Last Payment:`). `bill` extracts + parses it. Owner-billed
+accounts show the real name; occupant-billed ones read `OCCUPANT`. Note
+`RedactOwnerName` blanks owner in the JSON API but **not** in the bill PDF.
+
 ### Paying
 Card capture is **not** a plain JSON POST: it runs through the tenant's processor
 (BluePay via `…/proxy/bluepay/…`, or FIS/Link2Gov quick-pay) and is **gated by
