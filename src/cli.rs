@@ -27,11 +27,6 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_color: bool,
 
-    /// Reveal the account owner's name and mailing address. Off by default:
-    /// account numbers are enumerable, so owner details are withheld unless asked.
-    #[arg(long, global = true)]
-    pub show_owner: bool,
-
     /// WIPP tenant id. Defaults to LOXA (Loxahatchee River District).
     #[arg(long, global = true, env = "LRFL_WIPP_ID", default_value_t = crate::client::DEFAULT_WIPP_ID.to_string())]
     pub wipp_id: String,

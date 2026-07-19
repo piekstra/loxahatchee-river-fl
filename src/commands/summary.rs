@@ -35,12 +35,6 @@ pub fn run(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
             })
         });
 
-    formatter::print_summary(
-        &acct,
-        status.as_ref(),
-        last_payment.as_ref(),
-        ctx.show_owner,
-        ctx.json,
-    );
+    formatter::print_summary(&acct, status.as_ref(), last_payment.as_ref(), ctx.json);
     Ok(())
 }

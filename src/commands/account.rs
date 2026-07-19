@@ -14,7 +14,7 @@ pub fn show(ctx: &Ctx, arg: &AccountArg) -> Result<(), AppError> {
         ctx.api.wipp_id()
     ));
     let acct = Account::from_node(&id.dashed(), &ctx.api.utility_account(&id)?);
-    formatter::print_account(&acct, ctx.show_owner, ctx.json);
+    formatter::print_account(&acct, ctx.json);
     Ok(())
 }
 
