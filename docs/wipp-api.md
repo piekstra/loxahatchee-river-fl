@@ -100,7 +100,7 @@ party. Anonymous (no login).
   different segment (`WippPropInfo`) that LOXA (sewer-only) doesn't expose.
 - The result rows carry `ownerName`/`billToName` and a nested `wippPropInfo`
   (assessment/owner), but **no balance or charges** — and for LOXA those owner
-  and assessment fields come back blank. `lrfl search --extended` therefore fans
+  and assessment fields come back blank. `lrfl search --balances` therefore fans
   out one `/wippUtil/{id}` lookup per match to attach each account's balance.
 
 ### Service status  → powers `status`  (async)

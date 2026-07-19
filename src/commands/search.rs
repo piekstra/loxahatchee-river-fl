@@ -7,7 +7,7 @@ use crate::error::AppError;
 use crate::formatter;
 use crate::model::AccountMatch;
 
-pub fn run(ctx: &Ctx, query: &str, limit: u32, extended: bool) -> Result<(), AppError> {
+pub fn run(ctx: &Ctx, query: &str, limit: u32, balances: bool) -> Result<(), AppError> {
     ctx.log(&format!("searching accounts by location {query:?}"));
     let body = ctx.api.search_by_location(query, limit)?;
     let mut matches = AccountMatch::list_from(&body);
@@ -15,7 +15,7 @@ pub fn run(ctx: &Ctx, query: &str, limit: u32, extended: bool) -> Result<(), App
     // total; a full page just means there may be more.
     let truncated = matches.len() as u32 >= limit;
 
-    if extended {
+    if balances {
         // One account lookup per match — the search result has no balance. Skip
         // matches whose id won't parse rather than failing the whole command.
         for m in matches.iter_mut() {

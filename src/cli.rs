@@ -112,9 +112,9 @@ pub enum Command {
         #[arg(long, default_value_t = 50)]
         limit: u32,
         /// Also fetch each match's balance due (one request per match — use with
-        /// a focused query or a small `--limit`).
-        #[arg(long)]
-        extended: bool,
+        /// a focused query or a small `--limit`). Matches `accounts --balances`.
+        #[arg(long, short = 'b')]
+        balances: bool,
     },
 
     /// Show district info: name, billed services, payment options, contact.

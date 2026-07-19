@@ -168,7 +168,7 @@ pub struct AccountMatch {
     pub bill_to_name: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub service: String,
-    /// Amount due, filled in only when the search was run with `--extended`
+    /// Amount due, filled in only when the search was run with `--balances`
     /// (which fetches each match's full account).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance_due: Option<f64>,

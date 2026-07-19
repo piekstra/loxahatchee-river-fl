@@ -3,10 +3,10 @@
 ## v0.3.1 — 2026-07-19
 
 ### Added
-- **`lrfl search --extended`** — also fetch each match's **balance due**. The
+- **`lrfl search -b/--balances`** — also fetch each match's **balance due**. The
   search response has no balance, so this fans out one account lookup per match;
   use a focused query or a small `--limit`. Balances appear as a column in human
-  output and as `balance_due` in `--json`.
+  output and as `balance_due` in `--json`. (Named to match `accounts --balances`.)
 
 ## v0.3.0 — 2026-07-19
 

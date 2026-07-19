@@ -56,7 +56,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl history [ACCT]` | Posted payments (`--since YYYY-MM-DD` or `--years N`) |
 | `lrfl pay [ACCT]` | Compute the amount due and hand off to the portal's Pay Now page (`--open`) |
 | `lrfl open [ACCT]` | Open the account's portal page in your browser |
-| `lrfl search <ADDR>` | Find accounts by street/property address (`--limit N`; `--extended` adds each match's balance) — no login |
+| `lrfl search <ADDR>` | Find accounts by street/property address (`--limit N`; `-b/--balances` adds each match's balance) — no login |
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
 | `lrfl login` / `logout` / `whoami` | Manage a logged-in session (credential in the OS keychain) |

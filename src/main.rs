@@ -31,8 +31,8 @@ fn run(cli: Cli) -> Result<(), AppError> {
         Command::Search {
             query,
             limit,
-            extended,
-        } => commands::search::run(&ctx, query, *limit, *extended),
+            balances,
+        } => commands::search::run(&ctx, query, *limit, *balances),
         Command::District => commands::district::run(&ctx),
         Command::Config { action } => commands::config::run(&ctx, action),
         Command::Auth(cmd) => commands::auth::run(&ctx, cmd),
