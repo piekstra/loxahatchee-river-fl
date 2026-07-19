@@ -124,13 +124,18 @@ pub fn print_search(query: &str, matches: &[AccountMatch], truncated: bool, json
         if matches.len() == 1 { "" } else { "es" }
     );
     for m in matches {
+        // Balance column only appears with --extended (otherwise `None`).
+        let bal = match m.balance_due {
+            Some(b) => format!("{:>9}  ", money(b)),
+            None => String::new(),
+        };
         let who = if m.owner_name.is_empty() {
             String::new()
         } else {
             format!("   {}", m.owner_name)
         };
         println!(
-            "  {:<11} {}{who}",
+            "  {:<11} {bal}{}{who}",
             m.account_id,
             or_dash(&m.property_location)
         );
