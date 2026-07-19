@@ -51,8 +51,9 @@ These power `lrfl`'s read commands. All take `X-Wipp-Id` + a browser UA.
 - `GET /capabilities/{wippId}` → `{ utilBill, njTaxBill, arStandardInvoice, … }`
   booleans for which bill types the tenant accepts.
 - `GET /wipp/additional-metadata/{wippId}` → `{ featureFlags{…},
-  disallowedPaymentMethods[] }`. LOXA flags include `RedactOwnerName` (the API
-  blanks owner names), `OverrideQuickpayUrl`, `AllowBankruptPayment`,
+  disallowedPaymentMethods[] }`. LOXA flags include `RedactOwnerName` (blanks
+  owner names in the JSON API/portal UI only — **cosmetic**, since the anonymous
+  PDF bill still carries them), `OverrideQuickpayUrl`, `AllowBankruptPayment`,
   `AllowPaymentLessThanInterest`, `ThirdPartyPDFPrint`.
 
 ### Account lookup  → powers `account` / `balance` / `charges`
@@ -100,8 +101,13 @@ party. Anonymous (no login).
   different segment (`WippPropInfo`) that LOXA (sewer-only) doesn't expose.
 - The result rows carry `ownerName`/`billToName` and a nested `wippPropInfo`
   (assessment/owner), but **no balance or charges** — and for LOXA those owner
-  and assessment fields come back blank. `lrfl search --balances` therefore fans
-  out one `/wippUtil/{id}` lookup per match to attach each account's balance.
+  and assessment fields come back blank (`RedactOwnerName`). `lrfl search
+  --balances` therefore fans out one `/wippUtil/{id}` lookup per match to attach
+  each account's balance. `lrfl search --full` goes further — it fetches and
+  parses each match's PDF bill (the same anonymous chain as `bill`), folding in
+  the owner, mailing address, AutoPay, service period, and total due that the
+  search rows omit. Because that's an account lookup + PDF per match, `--full` is
+  capped to a small result set (narrow the query / lower `--limit`).
 
 ### Service status  → powers `status`  (async)
 `GET /wippUtil/{id}/determineAccountStatus` → `202 {requestId}` → poll →

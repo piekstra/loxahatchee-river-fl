@@ -38,9 +38,14 @@ lrfl history --years 2       # recent payments
 lrfl status                  # which services are active
 lrfl pay --open              # compute the amount and open the Pay Now page
 
-lrfl search "MAPLE"         # find accounts by address (no account number needed)
-lrfl bill                    # the current bill (owner, mailing addr, AutoPay) from the PDF
+lrfl search "MAPLE"          # find accounts by address (no account number needed)
+lrfl search "MAPLE" --full   # …with owner, mailing addr, AutoPay & balance folded in
+lrfl bill 1234567-0          # the current bill (owner, mailing addr, AutoPay) from the PDF
 ```
+
+`search` gives you an account number; feed it to `bill`, `account`, or `balance`
+for full detail — or pass `--full` to `search` to fold that detail into each
+match in one shot (it fetches a bill per match, so it caps to a small result set).
 
 You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 `$LRFL_ACCOUNT` instead of saving a default.
@@ -58,7 +63,7 @@ You can always pass an account explicitly (`lrfl balance 1234567-0`), or set
 | `lrfl pay [ACCT]` | Compute the amount due and hand off to the portal's Pay Now page (`--open`) |
 | `lrfl open [ACCT]` | Open the account's portal page in your browser |
 | `lrfl bill [ACCT]` | The current bill from the official PDF: bill-to owner, mailing address, AutoPay, period, total due (`--open` opens the PDF, `--save PATH` downloads it) |
-| `lrfl search <ADDR>` | Find accounts by street/property address (`--limit N`; `-b/--balances` adds each match's balance) — no login |
+| `lrfl search <ADDR>` | Find accounts by street/property address (`--limit N`; `-b/--balances` adds each match's balance; `--full` folds in each match's bill detail) — no login |
 | `lrfl district` | District info: billed services, payment options, contact |
 | `lrfl config …` | `set-account`, `show`, `clear` the saved default account |
 | `lrfl login` / `logout` / `whoami` | Manage a logged-in session (credential in the OS keychain) |
@@ -146,10 +151,14 @@ go to **stderr**, so `| jq` is always safe.
 
 The CLI shows whatever the district's portal returns for an account — owner name
 and mailing address included. It doesn't impose privacy the provider itself
-doesn't: the portal already answers anonymous account-number lookups, and blanks
-fields on its own (via a `RedactOwnerName` flag) when it wants to, so the tool
-just faithfully renders what it gets back. If you paste output somewhere public,
-sanitizing it is your call — the tool won't second-guess the provider for you.
+doesn't: the portal answers anonymous account-number lookups and address
+searches, no login required. The district's JSON API happens to blank the owner
+name (its `RedactOwnerName` flag), but that's cosmetic, not a privacy boundary —
+the same account's official PDF bill, fetched over the same anonymous channel,
+still carries the owner and mailing address, so `lrfl bill` (and `search --full`)
+surface them. The tool faithfully renders what the provider makes available; it
+doesn't invent redaction the provider doesn't enforce. If you paste output
+somewhere public, sanitizing it is your call.
 
 The only secret the tool stores is your portal **password**, in the OS keychain
 (the FIS session model exposes no long-lived token to keep instead) — never in a

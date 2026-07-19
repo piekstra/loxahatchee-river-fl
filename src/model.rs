@@ -3,6 +3,8 @@
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::bill::Bill;
+
 /// Tenant/district configuration distilled from `/metadata` + `/capabilities`.
 #[derive(Debug, Clone, Serialize)]
 pub struct District {
@@ -169,9 +171,13 @@ pub struct AccountMatch {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub service: String,
     /// Amount due, filled in only when the search was run with `--balances`
-    /// (which fetches each match's full account).
+    /// (which fetches each match's full account) or `--full`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance_due: Option<f64>,
+    /// Full bill detail (owner, mailing address, AutoPay, period …) — filled in
+    /// only with `--full`, which parses each match's official PDF bill.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bill: Option<Bill>,
 }
 
 impl AccountMatch {
@@ -184,6 +190,7 @@ impl AccountMatch {
             bill_to_name: string_at(v, "billToName"),
             service: string_at(v, "chargeType"),
             balance_due: None,
+            bill: None,
         }
     }
 
@@ -309,6 +316,25 @@ mod tests {
     #[test]
     fn account_match_empty_without_content() {
         assert!(AccountMatch::list_from(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn account_match_json_hydration_fields_are_optional() {
+        // A plain search row: no balance and no bill yet, so `--json` omits both.
+        let mut m = AccountMatch::from_node(&json!({
+            "accountId": "  226400  0", "propertyLoc": "348 MAPLE RD"
+        }));
+        let bare = serde_json::to_value(&m).unwrap();
+        assert_eq!(bare["account_id"], "226400-0");
+        assert!(bare.get("balance_due").is_none());
+        assert!(bare.get("bill").is_none());
+
+        // With `--balances`/`--full` they are populated and do serialize.
+        m.balance_due = Some(12.5);
+        m.bill = Some(crate::bill::Bill::default());
+        let full = serde_json::to_value(&m).unwrap();
+        assert_eq!(full["balance_due"], 12.5);
+        assert!(full.get("bill").is_some());
     }
 
     #[test]

@@ -119,6 +119,8 @@ pub enum Command {
 
     /// Find accounts by street/property address (e.g. `lrfl search "MAPLE"`).
     /// The district matches server-side (case-insensitive substring); no login.
+    /// Pass a match's account number to `bill`, `account`, or `balance` for full
+    /// detail — or use `--full` here to fold that detail into the results.
     Search {
         /// Street name or address fragment to match.
         query: String,
@@ -129,6 +131,12 @@ pub enum Command {
         /// a focused query or a small `--limit`). Matches `accounts --balances`.
         #[arg(long, short = 'b')]
         balances: bool,
+        /// Enrich each match with full bill detail (owner, mailing address,
+        /// AutoPay, service period, total due) parsed from its official PDF.
+        /// Fetches a bill per match, so it is capped to a small result set —
+        /// narrow the query or lower `--limit`. Implies `--balances`.
+        #[arg(long, conflicts_with = "balances")]
+        full: bool,
     },
 
     /// Show district info: name, billed services, payment options, contact.
