@@ -103,6 +103,16 @@ pub enum Command {
     /// Open the account's page in the portal in your default browser.
     Open(AccountArg),
 
+    /// Find accounts by street/property address (e.g. `lrfl search "MAPLE"`).
+    /// The district matches server-side (case-insensitive substring); no login.
+    Search {
+        /// Street name or address fragment to match.
+        query: String,
+        /// Maximum number of matches to return.
+        #[arg(long, default_value_t = 50)]
+        limit: u32,
+    },
+
     /// Show district info: name, billed services, payment options, contact.
     District,
 

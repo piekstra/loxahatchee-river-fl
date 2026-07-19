@@ -156,6 +156,41 @@ impl Payment {
     }
 }
 
+/// One account matched by an address / property-location search.
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountMatch {
+    /// Display id, `NNNNNNN-N`.
+    pub account_id: String,
+    pub property_location: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub owner_name: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub bill_to_name: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub service: String,
+}
+
+impl AccountMatch {
+    pub fn from_node(v: &Value) -> AccountMatch {
+        let raw = v.get("accountId").and_then(Value::as_str).unwrap_or("");
+        AccountMatch {
+            account_id: crate::acct::dash_raw_utility(raw),
+            property_location: string_at(v, "propertyLoc"),
+            owner_name: string_at(v, "ownerName"),
+            bill_to_name: string_at(v, "billToName"),
+            service: string_at(v, "chargeType"),
+        }
+    }
+
+    /// Parse the paginated search response (`{ content: [ … ] }`).
+    pub fn list_from(body: &Value) -> Vec<AccountMatch> {
+        body.get("content")
+            .and_then(Value::as_array)
+            .map(|arr| arr.iter().map(AccountMatch::from_node).collect())
+            .unwrap_or_default()
+    }
+}
+
 /// Per-service active/inactive status from `determineAccountStatus`.
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountStatus {
@@ -245,6 +280,30 @@ mod tests {
         assert_eq!(status_word("A"), "active");
         assert_eq!(status_word("N"), "inactive");
         assert_eq!(status_word(" "), "inactive");
+    }
+
+    #[test]
+    fn account_match_parses_search_page() {
+        let body = json!({
+            "content": [
+                { "accountId": "  226400  0", "propertyLoc": "348 MAPLE RD",
+                  "ownerName": " ", "billToName": " ", "chargeType": "Sewer       " },
+                { "accountId": "  226500  0", "propertyLoc": "352 MAPLE RD" }
+            ],
+            "totalElements": 2
+        });
+        let matches = AccountMatch::list_from(&body);
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].account_id, "226400-0");
+        assert_eq!(matches[0].property_location, "348 MAPLE RD");
+        assert_eq!(matches[0].service, "Sewer");
+        assert_eq!(matches[0].owner_name, ""); // blank sentinel trimmed
+        assert_eq!(matches[1].account_id, "226500-0");
+    }
+
+    #[test]
+    fn account_match_empty_without_content() {
+        assert!(AccountMatch::list_from(&json!({})).is_empty());
     }
 
     #[test]

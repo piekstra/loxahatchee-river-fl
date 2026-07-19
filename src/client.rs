@@ -150,6 +150,25 @@ impl Wipp {
         }
     }
 
+    /// Search utility accounts by street/property location. The district matches
+    /// server-side (case-insensitive substring on the property location); no
+    /// geocoding or third party is involved. `GET /wippUtil/search?propertyLoc=…`
+    /// returns a Spring page (`{ content: [ … ], totalElements, … }`).
+    pub fn search_by_location(&self, query: &str, size: u32) -> Result<Value, AppError> {
+        let size = size.to_string();
+        let (s, b) = self.get(
+            "/wippUtil/search",
+            &[("propertyLoc", query), ("size", &size)],
+        )?;
+        match s {
+            200 => Ok(b),
+            _ => Err(AppError::Upstream(format!(
+                "HTTP {s} searching {query:?}: {}",
+                body_message(&b).unwrap_or_else(|| "no detail".into())
+            ))),
+        }
+    }
+
     /// Per-service active/inactive status. This is an **async** mainframe call:
     /// submit, then poll. `GET /wippUtil/{id}/determineAccountStatus` → poll.
     pub fn account_status(&self, id: &AccountId) -> Result<Value, AppError> {
