@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.6.0 — 2026-07-19
+## v0.6.0 — 2026-07-20
 
 ### Changed
 - **Adopted the `utility/v1` domain profile** (cli-common v0.2.0; `pk-cli-*`
@@ -17,7 +17,9 @@
   - `info` advertises `"profiles": ["utility/v1"]`.
 - **`self-update` gains `-y/--yes` and `--json`** (the `self-update/v1` DTO)
   by adopting the shared `pk-cli-selfupdate` argument surface; `--check`
-  behaves as before.
+  behaves as before. This restores the family-standard
+  `self-update --check --json` probe that consumers (e.g. utiman) rely on — the
+  previous hand-rolled `--check`-only surface didn't emit JSON.
 
 ## v0.5.0 — 2026-07-19
 
